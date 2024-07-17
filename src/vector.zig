@@ -84,11 +84,14 @@ pub fn Vec(comptime T: type, comptime n: usize) type {
                 @compileError("Vector must have three elements for cross() to be defined");
             }
 
-            return Self{ .values = .{
-                self.values[1] * other.values[2] - self.values[2] * other.values[1],
-                self.values[2] * other.values[0] - self.values[0] * other.values[2],
-                self.values[0] * other.values[1] - self.values[1] * other.values[0],
-            } };
+            const self1 = @shuffle(T, self.values, self.values, [3]u8{ 1, 2, 0 });
+            const self2 = @shuffle(T, self.values, self.values, [3]u8{ 2, 0, 1 });
+            const other1 = @shuffle(T, other.values, other.values, [3]u8{ 2, 0, 1 });
+            const other2 = @shuffle(T, other.values, other.values, [3]u8{ 1, 2, 0 });
+
+            return .{
+                .values = self1 * other2 - self2 * other1,
+            };
         }
 
         pub fn distance(self: Self, other: Self) T {
