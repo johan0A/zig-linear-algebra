@@ -70,7 +70,9 @@ pub fn Vec(comptime T: type, comptime n: usize) type {
         }
 
         pub fn normalize(self: Self) Self {
-            return self / @as(@TypeOf(self.values), @splat(self.magnitude()));
+            return Self{
+                .values = self.values / @as(@TypeOf(self.values), @splat(self.magnitude())),
+            };
         }
 
         pub fn dot(self: Self, other: Self) T {
