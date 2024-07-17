@@ -95,7 +95,11 @@ pub fn Vec(comptime T: type, comptime n: usize) type {
         }
 
         pub fn distance(self: Self, other: Self) T {
-            return self.magnitude() - other.magnitude();
+            const sub = Self{
+                .values = self.values - other.values,
+            };
+            return sub.magnitude();
+        }
         }
 
         pub fn max(self: Self) T {
