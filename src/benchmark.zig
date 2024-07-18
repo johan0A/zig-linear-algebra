@@ -16,6 +16,7 @@ test "benchmark cross" {
 
     const elapsed = timer.read();
     std.debug.print("cross benchmark:\n", .{});
+    std.debug.print("operation: (1.0, 2.0, 3.0).cross((4.0, 5.0, 6.0))\n", .{});
     std.debug.print("time per operation: {d}\n", .{
         @as(f64, @floatFromInt(elapsed)) / n,
     });
@@ -34,7 +35,9 @@ test "benchmark distance" {
     }
 
     const elapsed = timer.read();
+    std.debug.print("--------------------------------\n", .{});
     std.debug.print("distance benchmark:\n", .{});
+    std.debug.print("operation: (1.0, 2.0, 3.0).distance((4.0, 5.0, 6.0))\n", .{});
     std.debug.print("time per operation: {d}\n", .{
         @as(f64, @floatFromInt(elapsed)) / n,
     });
@@ -51,8 +54,10 @@ test "benchmark normalize" {
         std.mem.doNotOptimizeAway(@call(.never_inline, Vec2.normalize, .{v1}));
     }
     const elapsed = timer.read();
+    std.debug.print("--------------------------------\n", .{});
     std.debug.print("normalize benchmark:\n", .{});
-    std.debug.print("time per operation: {d}\n", .{
+    std.debug.print("operation: (1.0, 2.0, 3.0).normalize()\n", .{});
+    std.debug.print("time per operation: {d} ns\n", .{
         @as(f64, @floatFromInt(elapsed)) / n,
     });
 }
@@ -69,8 +74,13 @@ test "sum benchmark" {
     }
 
     const elapsed = timer.read();
+    std.debug.print("--------------------------------\n", .{});
     std.debug.print("sum benchmark:\n", .{});
-    std.debug.print("time per operation: {d}\n", .{
+    std.debug.print("operation: (1.0, 2.0, 3.0).sum()\n", .{});
+    std.debug.print("time per operation: {d} ns\n", .{
+        @as(f64, @floatFromInt(elapsed)) / n,
+    });
+}
         @as(f64, @floatFromInt(elapsed)) / n,
     });
 }
