@@ -1,6 +1,8 @@
 const std = @import("std");
 
-const Vec = @import("module.zig").Vec;
+const module = @import("module.zig");
+const Vec = module.Vec;
+const Matrix = module.Matrix;
 
 test "benchmark cross" {
     const Vec2 = Vec(f32, 3);
@@ -81,6 +83,59 @@ test "sum benchmark" {
         @as(f64, @floatFromInt(elapsed)) / n,
     });
 }
+
+test "benchmark matrix multiplication 3x3 * 3x3" {
+    const Matrix3 = Matrix(f32, 3, 3);
+    const a = matrixMaker(3, 3);
+    const b = matrixMaker(3, 3);
+
+    var timer = try std.time.Timer.start();
+
+    const n = 10000000;
+    for (0..n) |_| {
+        std.mem.doNotOptimizeAway(@call(.never_inline, Matrix3.mul, .{ a, b }));
+    }
+
+    const elapsed = timer.read();
+    std.debug.print("--------------------------------\n", .{});
+    std.debug.print("matrix multiplication benchmark:\n", .{});
+    std.debug.print("operation: 3x3 * 3x3 matrix multiplication\n", .{});
+    std.debug.print("time per operation: {d} ns\n", .{
         @as(f64, @floatFromInt(elapsed)) / n,
     });
+}
+
+test "benchmark matrix multiplication 512x512 * 512x512" {
+    const size = 512;
+    const Matrix512 = Matrix(f32, size, size);
+    const a = matrixMaker(size, size);
+    const b = matrixMaker(size, size);
+
+    var timer = try std.time.Timer.start();
+
+    const n = 1;
+    for (0..n) |_| {
+        std.mem.doNotOptimizeAway(@call(.never_inline, Matrix512.mul, .{ a, b }));
+    }
+
+    const elapsed = timer.read();
+    std.debug.print("--------------------------------\n", .{});
+    std.debug.print("matrix multiplication benchmark:\n", .{});
+    std.debug.print("operation: 512x512 * 512x512 matrix multiplication\n", .{});
+    std.debug.print("time per operation: {d} ns\n", .{
+        @as(f64, @floatFromInt(elapsed)) / n,
+    });
+    std.debug.print("time per operation: {d} ms\n", .{
+        @as(f64, @floatFromInt(elapsed)) / n / 1000000,
+    });
+}
+
+fn matrixMaker(comptime rows: usize, comptime cols: usize) Matrix(f32, rows, cols) {
+    var result = Matrix(f32, rows, cols).init(undefined);
+    for (&result.data, 0..) |*row, i| {
+        for (row, 0..) |*col, j| {
+            col.* = @floatFromInt(i * cols + j);
+        }
+    }
+    return result;
 }
