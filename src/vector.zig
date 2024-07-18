@@ -10,7 +10,7 @@ pub fn Vec(comptime T: type, comptime n: usize) type {
     return struct {
         const Self = @This();
 
-        const len = n;
+        pub const len = n;
 
         values: @Vector(n, T),
 
