@@ -6,7 +6,7 @@ const std = @import("std");
 /// for example addition would be vec.values + other.values.
 ///
 /// vec.len is the number of elements in the vector. and is equivaent to vec.values.len.
-pub fn Vec(comptime T: type, comptime n: usize) type {
+pub fn Vec(comptime n: usize, comptime T: type) type {
     return struct {
         const Self = @This();
 
@@ -14,7 +14,7 @@ pub fn Vec(comptime T: type, comptime n: usize) type {
 
         values: @Vector(n, T),
 
-        pub fn init(data: @Vector(T, n)) Self {
+        pub fn init(data: @Vector(n, T)) Self {
             return Self{ .values = data };
         }
 
@@ -123,17 +123,17 @@ pub fn Vec(comptime T: type, comptime n: usize) type {
 }
 
 test "Vec f32" {
-    const Vec2 = Vec(f32, 2);
-    const v = Vec2{ .values = .{ 1.0, 2.0 } };
+    const Vec2 = Vec(2, f32);
+    const v = Vec2.init(.{ 1, 2 });
     try std.testing.expectEqual(@as(f32, 3.0), v.sum());
     try std.testing.expectEqual(@as(f32, 1.0), v.x());
     try std.testing.expectEqual(@as(f32, 2.0), v.y());
-    const v2 = Vec2{ .values = .{ 1.0, 0.0 } };
+    const v2 = Vec2.init(.{ 1, 0 });
     try std.testing.expectEqual(@as(f32, 1.0), v2.magnitude());
 }
 
 test "Vec i32" {
-    const Vec2 = Vec(i32, 2);
+    const Vec2 = Vec(2, i32);
     const v = Vec2{ .values = .{ 1, 2 } };
     try std.testing.expectEqual(@as(i32, 3), v.sum());
     try std.testing.expectEqual(@as(i32, 1), v.x());

@@ -5,9 +5,9 @@ const Vec = module.Vec;
 const Matrix = module.Matrix;
 
 test "benchmark cross" {
-    const Vec2 = Vec(f32, 3);
-    const v1 = Vec2{ .values = .{ 1.0, 2.0, 3.0 } };
-    const v2 = Vec2{ .values = .{ 4.0, 5.0, 6.0 } };
+    const Vec2 = Vec(3, f32);
+    const v1 = Vec2.init(.{ 1, 2, 3 });
+    const v2 = Vec2.init(.{ 4, 5, 6 });
 
     var timer = try std.time.Timer.start();
 
@@ -25,9 +25,9 @@ test "benchmark cross" {
 }
 
 test "benchmark distance" {
-    const Vec2 = Vec(f32, 3);
-    const v1 = Vec2{ .values = .{ 1.0, 2.0, 3.0 } };
-    const v2 = Vec2{ .values = .{ 4.0, 5.0, 6.0 } };
+    const Vec2 = Vec(3, f32);
+    const v1 = Vec2.init(.{ 1, 2, 3 });
+    const v2 = Vec2.init(.{ 4, 5, 6 });
 
     var timer = try std.time.Timer.start();
 
@@ -46,8 +46,8 @@ test "benchmark distance" {
 }
 
 test "benchmark normalize" {
-    const Vec2 = Vec(f32, 3);
-    const v1 = Vec2{ .values = .{ 1.0, 2.0, 3.0 } };
+    const Vec2 = Vec(3, f32);
+    const v1 = Vec2.init(.{ 1, 2, 3 });
 
     var timer = try std.time.Timer.start();
 
@@ -65,8 +65,8 @@ test "benchmark normalize" {
 }
 
 test "sum benchmark" {
-    const Vec2 = Vec(f32, 3);
-    const v1 = Vec2{ .values = .{ 1.0, 2.0, 3.0 } };
+    const Vec2 = Vec(3, f32);
+    const v1 = Vec2.init(.{ 1, 2, 3 });
 
     var timer = try std.time.Timer.start();
 
