@@ -105,15 +105,15 @@ test "benchmark matrix multiplication 3x3 * 3x3" {
     });
 }
 
-test "benchmark matrix multiplication 512x512 * 512x512" {
-    const size = 512;
+test "benchmark matrix multiplication 256x256 * 256x256" {
+    const size = 256;
     const Matrix512 = Matrix(f32, size, size);
     const a = matrixMaker(size, size);
     const b = matrixMaker(size, size);
 
     var timer = try std.time.Timer.start();
 
-    const n = 1;
+    const n = 10;
     for (0..n) |_| {
         std.mem.doNotOptimizeAway(@call(.never_inline, Matrix512.mul, .{ a, b }));
     }
@@ -121,7 +121,7 @@ test "benchmark matrix multiplication 512x512 * 512x512" {
     const elapsed = timer.read();
     std.debug.print("--------------------------------\n", .{});
     std.debug.print("matrix multiplication benchmark:\n", .{});
-    std.debug.print("operation: 512x512 * 512x512 matrix multiplication\n", .{});
+    std.debug.print("operation: 256x256 * 256x256 matrix multiplication\n", .{});
     std.debug.print("time per operation: {d} ns\n", .{
         @as(f64, @floatFromInt(elapsed)) / n,
     });
