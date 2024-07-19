@@ -46,6 +46,30 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
             return self.values[3];
         }
 
+        pub fn swizzle(self: Self, comptime components: []const u8) Vec(components.len, T) {
+            comptime var mask: [components.len]u8 = undefined;
+            comptime var i: usize = 0;
+            inline for (components) |c| {
+                switch (c) {
+                    'x' => mask[i] = 0,
+                    'y' => mask[i] = 1,
+                    'z' => mask[i] = 2,
+                    'w' => mask[i] = 3,
+                    else => @compileError("swizzle: invalid component"),
+                }
+                i += 1;
+            }
+
+            return Vec(components.len, T){
+                .values = @shuffle(
+                    T,
+                    self.values,
+                    @as(@Vector(1, T), undefined),
+                    mask,
+                ),
+            };
+        }
+
         pub fn magnitude(self: Self) T {
             comptime var type_info = @typeInfo(T);
             if (type_info == .Int and type_info.Int.signedness == .signed) {
@@ -140,4 +164,11 @@ test "Vec i32" {
     try std.testing.expectEqual(@as(i32, 2), v.y());
     const v2 = Vec2{ .values = .{ 1, 0 } };
     try std.testing.expectEqual(@as(i32, 1), v2.magnitude());
+test "swizzle" {
+    const v = Vec(2, f32).init(.{ 1, 2 });
+    try std.testing.expectEqual(@as(f32, 2), v.swizzle("yx").x());
+    try std.testing.expectEqual(@as(f32, 1), v.swizzle("yx").y());
+    const v2 = Vec(3, f32).init(.{ 1, 2, 3 });
+    const v2_expected = Vec(3, f32).init(.{ 2, 3, 1 });
+    try std.testing.expectEqual(v2_expected, v2.swizzle("yzx"));
 }
