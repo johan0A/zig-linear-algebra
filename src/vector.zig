@@ -124,6 +124,18 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
             };
             return sub.magnitude();
         }
+
+        pub fn angle(self: Self, other: Self) T {
+            return std.math.acos(self.dot(other) / (self.magnitude() * other.magnitude()));
+        }
+
+        pub fn reflect(self: Self, normal: Self) Self {
+            const dotProduct = self.dot(normal);
+            return Self{
+                .values = self.values - (normal.values *
+                    @as(@Vector(n, T), @splat(dotProduct)) *
+                    @as(@Vector(n, T), @splat(2))),
+            };
         }
 
         pub fn max(self: Self) T {
@@ -154,6 +166,11 @@ test "Vec f32" {
     try std.testing.expectEqual(@as(f32, 2.0), v.y());
     const v2 = Vec2.init(.{ 1, 0 });
     try std.testing.expectEqual(@as(f32, 1.0), v2.magnitude());
+    try std.testing.expectEqual(@as(f32, 1.0), v2.normalize().magnitude());
+    const v3 = Vec2.init(.{ 0, 1 });
+    try std.testing.expectEqual(@as(f32, 0), v3.dot(v2));
+    try std.testing.expectApproxEqAbs(@as(f32, std.math.pi) / 2, v2.angle(v3), 0.001);
+    try std.testing.expectEqual(v2, v2.reflect(v3));
 }
 
 test "Vec i32" {
@@ -164,6 +181,12 @@ test "Vec i32" {
     try std.testing.expectEqual(@as(i32, 2), v.y());
     const v2 = Vec2{ .values = .{ 1, 0 } };
     try std.testing.expectEqual(@as(i32, 1), v2.magnitude());
+    try std.testing.expectEqual(@as(i32, 1), v2.normalize().magnitude());
+    const v3 = Vec2{ .values = .{ 0, 1 } };
+    try std.testing.expectEqual(@as(i32, 0), v3.dot(v2));
+    try std.testing.expectEqual(v2, v2.reflect(v3));
+}
+
 test "swizzle" {
     const v = Vec(2, f32).init(.{ 1, 2 });
     try std.testing.expectEqual(@as(f32, 2), v.swizzle("yx").x());
