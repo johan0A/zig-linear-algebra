@@ -1,4 +1,4 @@
-bzig-blas: bad zig basic linear algebra library
+zig-linear-algebra: a basic linear algebra library for zig
 ================================================
 
 This package is a simple linear algebra library writen entirely in Zig.
