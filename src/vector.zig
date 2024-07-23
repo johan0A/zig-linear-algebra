@@ -382,6 +382,20 @@ test "normalizeAdv" {
     try std.testing.expectEqual(expected_int.y(), v.normalizeAdv(i32).y());
 }
 
+test "dotAdv" {
+    const v1 = Vec(3, i32).init(.{ 1, 2, 3 });
+    const v2 = Vec(3, i32).init(.{ 3, 4, 5 });
+    try std.testing.expectEqual(26, v1.dotAdv(v2, 32));
+}
+
+test "angleAdv" {
+    const v1 = Vec(2, f32).init(.{ 1, 0 });
+    const v2 = Vec(2, f32).init(.{ 0, 1 });
+    const expected: f64 = @as(f64, std.math.pi) / @as(f64, 2);
+    try std.testing.expectApproxEqAbs(expected, v1.angleAdv(v2, 32), 0.0000001);
+    try std.testing.expectApproxEqAbs(expected, v1.angleAdv(v2, 64), 0.00000000001);
+}
+
 test "Vec f32" {
     const Vec2 = Vec(2, f32);
     const v = Vec2.init(.{ 1, 2 });
