@@ -300,18 +300,18 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
             _ = options;
             try std.fmt.format(writer, "{}", .{value});
         }
-
-        fn checkPrecision(comptime precision: u8) void {
-            comptime {
-                if (precision > 128) {
-                    @compileError("precision must be less or equal to 128");
-                }
-                if (precision == 0) {
-                    @compileError("precision must be greater than 0");
-                }
-            }
-        }
     };
+}
+
+fn checkPrecision(comptime precision: u8) void {
+    comptime {
+        if (precision > 128) {
+            @compileError("precision must be less or equal to 128");
+        }
+        if (precision == 0) {
+            @compileError("precision must be greater than 0");
+        }
+    }
 }
 
 fn castEnsureType(comptime T: type, value: anytype) T {
