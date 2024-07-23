@@ -1,6 +1,6 @@
 const std = @import("std");
 
-pub fn Matrix(comptime T: type, comptime rows: usize, comptime cols: usize) type {
+pub fn Mat(comptime T: type, comptime rows: usize, comptime cols: usize) type {
     return struct {
         const Self = @This();
 
@@ -39,31 +39,31 @@ pub fn Matrix(comptime T: type, comptime rows: usize, comptime cols: usize) type
 }
 
 test "Matrix multiplication" {
-    const a = Matrix(f32, 2, 2).init(.{
+    const a = Mat(f32, 2, 2).init(.{
         .{ 1.0, 2.0 },
         .{ 3.0, 4.0 },
     });
-    const b = Matrix(f32, 2, 2).init(.{
+    const b = Mat(f32, 2, 2).init(.{
         .{ 5.0, 6.0 },
         .{ 7.0, 8.0 },
     });
-    const excpected_c = Matrix(f32, 2, 2).init(.{
+    const excpected_c = Mat(f32, 2, 2).init(.{
         .{ 19.0, 22.0 },
         .{ 43.0, 50.0 },
     });
     const c = a.mul(b);
     try std.testing.expectEqual(excpected_c, c);
 
-    const d = Matrix(f32, 2, 3).init(.{
+    const d = Mat(f32, 2, 3).init(.{
         .{ 1.0, 2.0, 3.0 },
         .{ 4.0, 5.0, 6.0 },
     });
-    const e = Matrix(f32, 3, 3).init(.{
+    const e = Mat(f32, 3, 3).init(.{
         .{ 1.0, 2.0, 3.0 },
         .{ 4.0, 5.0, 6.0 },
         .{ 7.0, 8.0, 9.0 },
     });
-    const excpected_f = Matrix(f32, 2, 3).init(.{
+    const excpected_f = Mat(f32, 2, 3).init(.{
         .{ 30, 36, 42 },
         .{ 66, 81, 96 },
     });
