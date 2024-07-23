@@ -12,12 +12,12 @@ this library is not ready for use.
 
 - ~~rework how precision of output types is handle for vectors~~
 - ~~rework how vectors handle integer types~~
+- ~~add doc comments for Vector operations~~
 - decide how to handle undefined behavior (eg overflows)
 - add install guide
 - add usage guide
 - rework how precision of output types is handle for matrices
 - rework how matrices handle integer types
 - add more operations to Vectors
-- add doc comments
 - Add more operations to Matrices
 - Compare performance to openblas

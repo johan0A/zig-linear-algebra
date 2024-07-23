@@ -1,15 +1,13 @@
 const std = @import("std");
 
-/// TODO: rework this documentation
-/// A generic vector type.
+/// A generic vector type. Floats and integers are supported.
 ///
 /// the `vals` field is of type `@Vector(T, n)` and is meant to be used directly for the basic operations available for @Vector types.
-/// for example vector additions can be achieved with `vec.vals + other.vals`.
-///
-/// if a specific output precision is desired, it can be specified with the Adv variants of the Vec functions
-/// (precsion corresponds to the number of bits of the output and the precsion of the calculations will match).
+/// for example vector additions can be achieved with `vec.vals + other_vec.vals`.
 ///
 /// the len public constant is the number of elements in the vector, and is equivalent to vec.vals.len.
+///
+/// Adv at the end of some function is short for "advanced", those functions give more control over the output.
 pub fn Vec(comptime n: usize, comptime T: type) type {
     switch (@typeInfo(T)) {
         .Int => {},
@@ -31,16 +29,21 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
 
         pub const len = n;
 
+        /// this field is of type `@Vector(T, n)` and is meant to be used directly for the basic operations available for @Vector types.
+        /// for example vector additions can be achieved with `vec.vals + other_vec.vals`.
         vals: ValsType,
 
+        /// Initializes a vector with the given data.
         pub fn init(data: @Vector(n, T)) Self {
             return Self{ .vals = data };
         }
 
+        /// Initializes a vector with all the same scalar value.
         pub fn initAll(value: T) Self {
             return Self{ .vals = @splat(value) };
         }
 
+        /// Returns the x component of the vector.
         pub fn x(self: Self) T {
             if (n < 1) {
                 @compileError("Vector must have at least one element for x() to be defined");
@@ -48,6 +51,7 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
             return self.vals[0];
         }
 
+        /// Returns the y component of the vector.
         pub fn y(self: Self) T {
             if (n < 2) {
                 @compileError("Vector must have at least two elements for y() to be defined");
@@ -55,6 +59,7 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
             return self.vals[1];
         }
 
+        /// Returns the z component of the vector.
         pub fn z(self: Self) T {
             if (n < 3) {
                 @compileError("Vector must have at least three elements for z() to be defined");
@@ -62,6 +67,7 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
             return self.vals[2];
         }
 
+        /// Returns the w component of the vector.
         pub fn w(self: Self) T {
             if (n < 4) {
                 @compileError("Vector must have at least four elements for w() to be defined");
@@ -69,6 +75,21 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
             return self.vals[3];
         }
 
+        /// Returns a new vector with the components swizzled.
+        ///
+        /// example:
+        /// ```
+        /// const v = Vec(2, f32).init(.{ 1, 2 });
+        /// const v2 = v.swizzle("yx"); // <= here x and y are swapped
+        /// ```
+        /// v2 is equal to `Vec(2, f32).init(.{ 2, 1 });`
+        ///
+        /// this is also valid:
+        /// ```
+        /// const v = Vec(2, f32).init(.{ 1, 2, 3, 4 });
+        /// const v2 = v.swizzle("wx");
+        /// ```
+        /// here v2 is equal to `Vec(2, f32).init(.{ 4, 1 });`
         pub fn swizzle(self: Self, comptime components: []const u8) Vec(components.len, T) {
             comptime var mask: [components.len]u8 = undefined;
             comptime var i: usize = 0;
@@ -93,6 +114,10 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
             };
         }
 
+        /// Returns the norm of the vector as a Float.
+        ///
+        /// the precsion parameter is the number of bits of the output.
+        /// the precision of the calculations will match the precision of the output type.
         pub fn normAdv(self: Self, comptime precision: u8) Float(precision) {
             checkPrecision(precision);
             const ResultType = Float(precision);
@@ -127,10 +152,17 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
             }
         }
 
+        /// Returns the norm of the vector as a Float with the default precision.
+        /// the default precision is the number of bits of the output.
+        /// see `normAdv` for more information.
         pub fn norm(self: Self) Float(default_precision) {
             return self.normAdv(default_precision);
         }
 
+        /// Returns a new vector with the same direction as the original vector, but with a norm of 1.
+        ///
+        /// the precsion parameter is the number of bits of the output.
+        /// the precision of the calculations will match the precision of the output type.
         pub fn normalizeAdv(self: Self, ReturnT: type) Vec(n, ReturnT) {
             const precision = switch (@typeInfo(ReturnT)) {
                 .Float => @typeInfo(ReturnT).Float.bits,
@@ -150,10 +182,18 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
             };
         }
 
+        /// Returns a new vector with the same direction as the original vector, but with a norm of 1.
+        ///
+        /// the default precision is the number of bits of the output.
+        /// see `normalizeAdv` for more information.
         pub fn normalize(self: Self) Self {
             return self.normalizeAdv(T);
         }
 
+        /// Returns the dot product of the two vectors.
+        ///
+        /// the precsion parameter is the number of bits of the output.
+        /// the precision of the calculations will match the precision of the output type.
         pub fn dotAdv(self: Self, other: Self, comptime precision: u8) Float(precision) {
             checkPrecision(precision);
             switch (@typeInfo(T)) {
@@ -163,10 +203,15 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
             }
         }
 
+        /// Returns the dot product of the two vectors.
+        ///
+        /// the default precision is the number of bits of the output.
+        /// see `dotAdv` for more information.
         pub fn dot(self: Self, other: Self) Float(default_precision) {
             return self.dotAdv(other, default_precision);
         }
 
+        /// Returns the cross product of two vectors.
         pub fn cross(self: Self, other: Self) Self {
             if (n != 3) {
                 @compileError("self Vector must have three elements for cross() to be defined");
@@ -185,6 +230,10 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
             };
         }
 
+        /// Returns the distance between two vectors.
+        ///
+        /// the precsion parameter is the number of bits of the output.
+        /// the precision of the calculations will match the precision of the output type.
         pub fn distanceAdv(self: Self, other: Self, comptime precision: u8) Float(precision) {
             const sub = Self{
                 .vals = self.vals - other.vals,
@@ -192,19 +241,32 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
             return sub.norm(precision);
         }
 
+        /// Returns the distance between two vectors.
+        ///
+        /// the default precision is the number of bits of the output.
+        /// see `distanceAdv` for more information.
         pub fn distance(self: Self, other: Self) T {
             return self.distanceAdv(other, default_precision);
         }
 
+        /// Returns the angle between two vectors.
+        ///
+        /// the precsion parameter is the number of bits of the output.
+        /// the precision of the calculations will match the precision of the output type.
         pub fn angleAdv(self: Self, other: Self, comptime precision: u8) Float(precision) {
             const dotProduct = self.dotAdv(other, precision);
             return std.math.acos(dotProduct / (self.normAdv(precision) * other.normAdv(precision)));
         }
 
+        /// Returns the angle between two vectors.
+        ///
+        /// the default precision is the number of bits of the output.
+        /// see `angleAdv` for more information.
         pub fn angle(self: Self, other: Self) T {
             return self.angleAdv(other, default_precision);
         }
 
+        /// Returns a new vector that is the reflection of the original vector on the given normal.
         pub fn reflect(self: Self, normal: Self) Self {
             const dot_product = switch (@typeInfo(T)) {
                 .Float => self.dot(normal),
@@ -218,14 +280,17 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
             };
         }
 
+        /// Returns the maximum value in the vector.
         pub fn max(self: Self) T {
             return @reduce(.Max, self.vals);
         }
 
+        /// Returns the minimum value in the vector.
         pub fn min(self: Self) T {
             return @reduce(.Min, self.vals);
         }
 
+        /// Returns the sum of all the values in the vector.
         pub fn sum(self: Self) T {
             return @reduce(.Add, self.vals);
         }
