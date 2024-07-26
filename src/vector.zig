@@ -5,8 +5,6 @@ const std = @import("std");
 /// the `vals` field is of type `@Vector(T, n)` and is meant to be used directly for the basic operations available for @Vector types.
 /// for example vector additions can be achieved with `vec.vals + other_vec.vals`.
 ///
-/// the len public constant is the number of elements in the vector, and is equivalent to vec.vals.len.
-///
 /// Adv at the end of some function is short for "advanced", those functions give more control over the output.
 pub fn Vec(comptime n: usize, comptime T: type) type {
     switch (@typeInfo(T)) {
