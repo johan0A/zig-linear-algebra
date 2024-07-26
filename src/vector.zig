@@ -24,6 +24,9 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
             else => unreachable,
         };
 
+        /// the type of the values in the vector.
+        pub const Type = T;
+
         /// the number of elements in the vector.
         pub const len = n;
 
