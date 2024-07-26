@@ -51,12 +51,28 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
             return self.vals[0];
         }
 
+        /// Sets the x component of the vector.
+        pub fn setX(self: *Self, value: T) void {
+            if (n < 1) {
+                @compileError("Vector must have at least one element for setX() to be defined");
+            }
+            self.vals[0] = value;
+        }
+
         /// Returns the y component of the vector.
         pub fn y(self: Self) T {
             if (n < 2) {
                 @compileError("Vector must have at least two elements for y() to be defined");
             }
             return self.vals[1];
+        }
+
+        /// Sets the y component of the vector.
+        pub fn setY(self: *Self, value: T) void {
+            if (n < 2) {
+                @compileError("Vector must have at least two elements for setY() to be defined");
+            }
+            self.vals[1] = value;
         }
 
         /// Returns the z component of the vector.
@@ -67,12 +83,28 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
             return self.vals[2];
         }
 
+        /// Sets the z component of the vector.
+        pub fn setZ(self: *Self, value: T) void {
+            if (n < 3) {
+                @compileError("Vector must have at least three elements for setZ() to be defined");
+            }
+            self.vals[2] = value;
+        }
+
         /// Returns the w component of the vector.
         pub fn w(self: Self) T {
             if (n < 4) {
                 @compileError("Vector must have at least four elements for w() to be defined");
             }
             return self.vals[3];
+        }
+
+        /// Sets the w component of the vector.
+        pub fn setW(self: *Self, value: T) void {
+            if (n < 4) {
+                @compileError("Vector must have at least four elements for setW() to be defined");
+            }
+            self.vals[3] = value;
         }
 
         /// Returns a new vector with the components swizzled.
