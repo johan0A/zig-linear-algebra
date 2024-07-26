@@ -19,15 +19,17 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
         const Self = @This();
         const Float = std.meta.Float;
 
-        const default_precision = switch (@typeInfo(T)) {
+        /// the default precision of the Vector type T.
+        pub const default_precision = switch (@typeInfo(T)) {
             .Int => |int| int.bits,
             .Float => |float| float.bits,
             else => unreachable,
         };
 
-        const ValsType = @Vector(n, T);
-
+        /// the number of elements in the vector.
         pub const len = n;
+
+        const ValsType = @Vector(n, T);
 
         /// this field is of type `@Vector(T, n)` and is meant to be used directly for the basic operations available for @Vector types.
         /// for example vector additions can be achieved with `vec.vals + other_vec.vals`.
@@ -185,7 +187,7 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
         }
 
         /// Returns the norm of the vector as a Float with the default precision.
-        /// the default precision is the number of bits of the output.
+        /// the precision of the output is the number of bits of the output.
         /// see `normAdv` for more information.
         pub fn norm(self: Self) Float(default_precision) {
             return self.normAdv(default_precision);
@@ -216,7 +218,7 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
 
         /// Returns a new vector with the same direction as the original vector, but with a norm of 1.
         ///
-        /// the default precision is the number of bits of the output.
+        /// the precision of the output is the number of bits of the Vector type T.
         /// see `normalizeAdv` for more information.
         pub fn normalize(self: Self) Self {
             return self.normalizeAdv(T);
@@ -237,7 +239,7 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
 
         /// Returns the dot product of the two vectors.
         ///
-        /// the default precision is the number of bits of the output.
+        /// the precision of the output is the number of bits of the Vector type T.
         /// see `dotAdv` for more information.
         pub fn dot(self: Self, other: Self) Float(default_precision) {
             return self.dotAdv(other, default_precision);
@@ -264,7 +266,7 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
 
         /// Returns the distance between two vectors.
         ///
-        /// the precsion parameter is the number of bits of the output.
+        /// the precsion parameter is the number of bits of the Vector type T.
         /// the precision of the calculations will match the precision of the output type.
         pub fn distanceAdv(self: Self, other: Self, comptime precision: u8) Float(precision) {
             const sub = Self{
@@ -275,7 +277,7 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
 
         /// Returns the distance between two vectors.
         ///
-        /// the default precision is the number of bits of the output.
+        /// the precision of the output is the number of bits of the Vector type T.
         /// see `distanceAdv` for more information.
         pub fn distance(self: Self, other: Self) T {
             return self.distanceAdv(other, default_precision);
@@ -283,7 +285,7 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
 
         /// Returns the angle between two vectors.
         ///
-        /// the precsion parameter is the number of bits of the output.
+        /// the precsion parameter is the number of bits of the Vector type T.
         /// the precision of the calculations will match the precision of the output type.
         pub fn angleAdv(self: Self, other: Self, comptime precision: u8) Float(precision) {
             const dotProduct = self.dotAdv(other, precision);
@@ -292,7 +294,7 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
 
         /// Returns the angle between two vectors.
         ///
-        /// the default precision is the number of bits of the output.
+        /// the precision of the output is the number of bits of the output.
         /// see `angleAdv` for more information.
         pub fn angle(self: Self, other: Self) T {
             return self.angleAdv(other, default_precision);
