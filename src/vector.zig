@@ -334,6 +334,27 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
             _ = options;
             try std.fmt.format(writer, "{}", .{value});
         }
+
+        pub fn append(self: Self, value: T) Vec(n + 1, T) {
+            var result: Vec(n + 1, T) = undefined;
+            // @memcpy(&result.vals, &self.vals);
+            for (0..n) |i| {
+                result.vals[i] = self.vals[i];
+            }
+            result.vals[n] = value;
+            return result;
+        }
+
+        pub fn appendVec(self: Self, other: anytype) Vec(n + @TypeOf(other).len, T) {
+            var result: Vec(n + @TypeOf(other).len, T) = undefined;
+            for (0..n) |i| {
+                result.vals[i] = self.vals[i];
+            }
+            for (0..@TypeOf(other).len) |i| {
+                result.vals[n + i] = other.vals[i];
+            }
+            return result;
+        }
     };
 }
 
@@ -374,6 +395,19 @@ fn castEnsureType(comptime T: type, value: anytype) T {
         },
         else => unreachable,
     };
+}
+
+test "append" {
+    const v = Vec(2, f32).init(.{ 1, 2 });
+    const v2 = Vec(3, f32).init(.{ 3, 4, 3 });
+    try std.testing.expectEqual(Vec(3, f32).init(.{ 1, 2, 3 }), v.append(3));
+    try std.testing.expectEqual(Vec(5, f32).init(.{ 3, 4, 3, 3, 3 }), v2.append(3).append(3));
+}
+
+test "appendVec" {
+    const v = Vec(2, f32).init(.{ 1, 2 });
+    const v2 = Vec(3, f32).init(.{ 3, 4, 3 });
+    try std.testing.expectEqual(Vec(5, f32).init(.{ 1, 2, 3, 4, 3 }), v.appendVec(v2));
 }
 
 test "normAdv" {
