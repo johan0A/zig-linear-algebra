@@ -191,7 +191,7 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
         /// the precision of the output is the number of bits of the output.
         /// see `normAdv` for more information.
         pub fn norm(self: Self) Float(default_precision) {
-            return self.normAdv(default_precision);
+            return @call(.always_inline, normAdv, .{ self, default_precision });
         }
 
         /// Returns a new vector with the same direction as the original vector, but with a norm of 1.
@@ -222,7 +222,7 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
         /// the precision of the output is the number of bits of the Vector type T.
         /// see `normalizeAdv` for more information.
         pub fn normalize(self: Self) Self {
-            return self.normalizeAdv(T);
+            return @call(.always_inline, normalizeAdv, .{ self, T });
         }
 
         /// Returns the dot product of the two vectors.
@@ -243,7 +243,7 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
         /// the precision of the output is the number of bits of the Vector type T.
         /// see `dotAdv` for more information.
         pub fn dot(self: Self, other: Self) Float(default_precision) {
-            return self.dotAdv(other, default_precision);
+            return @call(.always_inline, dotAdv, .{ self, other, default_precision });
         }
 
         /// Returns the cross product of two vectors.
@@ -281,7 +281,7 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
         /// the precision of the output is the number of bits of the Vector type T.
         /// see `distanceAdv` for more information.
         pub fn distance(self: Self, other: Self) T {
-            return self.distanceAdv(other, default_precision);
+            return @call(.always_inline, distanceAdv, .{ self, other, default_precision });
         }
 
         /// Returns the angle between two vectors.
@@ -298,7 +298,7 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
         /// the precision of the output is the number of bits of the output.
         /// see `angleAdv` for more information.
         pub fn angle(self: Self, other: Self) T {
-            return self.angleAdv(other, default_precision);
+            return @call(.always_inline, angleAdv, .{ self, other, default_precision });
         }
 
         /// Returns a new vector that is the reflection of the original vector on the given normal.
@@ -359,7 +359,7 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
 
         pub inline fn lenght(self: Self) usize {
             _ = self;
-            return Self.len;
+            return n;
         }
     };
 }
