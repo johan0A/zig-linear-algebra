@@ -207,10 +207,6 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
 
             const self_norm = castEnsureType(ReturnT, self.normAdv(precision));
 
-            if (self_norm == 0) {
-                return Vec(n, ReturnT).initAll(0);
-            }
-
             return .{
                 .vals = castEnsureType(@Vector(n, ReturnT), self.vals) /
                     @as(@Vector(n, ReturnT), @splat(self_norm)),
