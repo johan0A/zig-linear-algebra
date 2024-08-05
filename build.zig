@@ -14,27 +14,27 @@ pub fn build(b: *std.Build) void {
     }
 
     {
-        const module_unit_tests = b.addTest(.{
+        const unit_tests = b.addTest(.{
             .root_source_file = b.path("src/module.zig"),
             .target = target,
             .optimize = optimize,
         });
-        const run_lib_unit_tests = b.addRunArtifact(module_unit_tests);
+        const run_unit_tests = b.addRunArtifact(unit_tests);
 
         const test_step = b.step("test", "Run unit tests");
-        test_step.dependOn(&run_lib_unit_tests.step);
+        test_step.dependOn(&run_unit_tests.step);
     }
 
     {
-        const module_benchmark = b.addTest(.{
+        const benchmark = b.addTest(.{
             .root_source_file = b.path("src/benchmark.zig"),
             .target = target,
             .optimize = optimize,
         });
-        const run_lib_unit_tests = b.addRunArtifact(module_benchmark);
-        run_lib_unit_tests.has_side_effects = true;
+        const run_benchmark = b.addRunArtifact(benchmark);
+        run_benchmark.has_side_effects = true;
 
         const test_step = b.step("benchmark", "Run benchmarks");
-        test_step.dependOn(&run_lib_unit_tests.step);
+        test_step.dependOn(&run_benchmark.step);
     }
 }
