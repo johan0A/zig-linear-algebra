@@ -2,7 +2,7 @@ const std = @import("std");
 
 const module = @import("module.zig");
 const Vec = module.Vec;
-const Matrix = module.Matrix;
+const Matrix = module.Mat;
 
 test "benchmark cross" {
     const Vec2 = Vec(3, f32);

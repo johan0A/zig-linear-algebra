@@ -251,7 +251,7 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
             if (n != 3) {
                 @compileError("self Vector must have three elements for cross() to be defined");
             }
-            if (other.len != 3) {
+            if (other.lenght() != 3) {
                 @compileError("other Vector must have three elements for cross() to be defined");
             }
 
@@ -261,7 +261,7 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
             const other2 = @shuffle(T, other.vals, other.vals, [3]u8{ 1, 2, 0 });
 
             return .{
-                .values = self1 * other2 - self2 * other1,
+                .vals = self1 * other2 - self2 * other1,
             };
         }
 
@@ -273,7 +273,7 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
             const sub = Self{
                 .vals = self.vals - other.vals,
             };
-            return sub.norm(precision);
+            return sub.normAdv(precision);
         }
 
         /// Returns the distance between two vectors.
@@ -355,6 +355,11 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
                 result.vals[n + i] = other.vals[i];
             }
             return result;
+        }
+
+        pub inline fn lenght(self: Self) usize {
+            _ = self;
+            return Self.len;
         }
     };
 }
