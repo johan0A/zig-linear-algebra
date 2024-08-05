@@ -221,6 +221,12 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
             return @call(.always_inline, normalizeAdv, .{ self, T });
         }
 
+        /// Modifies the vector in place to have a norm of 1.
+        pub fn selfNormalize(self: *Self) void {
+            const self_norm = self.norm();
+            self.vals = self.vals / @as(@Vector(n, T), @splat(self_norm));
+        }
+
         /// Returns the dot product of the two vectors.
         ///
         /// the precsion parameter is the number of bits of the output.
