@@ -1,5 +1,5 @@
 .{
-    .name = "bzig-blas",
+    .name = "zla",
 
     .version = "0.0.1",
 
