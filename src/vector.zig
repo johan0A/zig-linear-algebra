@@ -332,15 +332,9 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
             return @reduce(.Add, self.vals);
         }
 
-        pub fn format(value: Self, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
-            _ = fmt;
-            _ = options;
-            try std.fmt.format(writer, "{}", .{value});
-        }
-
+        /// TODO: doc
         pub fn append(self: Self, value: T) Vec(n + 1, T) {
             var result: Vec(n + 1, T) = undefined;
-            // @memcpy(&result.vals, &self.vals);
             for (0..n) |i| {
                 result.vals[i] = self.vals[i];
             }
@@ -348,6 +342,7 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
             return result;
         }
 
+        /// TODO: doc
         pub fn appendVec(self: Self, other: anytype) Vec(n + @TypeOf(other).len, T) {
             var result: Vec(n + @TypeOf(other).len, T) = undefined;
             for (0..n) |i| {
@@ -359,9 +354,16 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
             return result;
         }
 
+        /// returns the number of elements of the vector.
         pub inline fn lenght(self: Self) usize {
             _ = self;
             return n;
+        }
+
+        pub fn format(value: Self, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+            _ = fmt;
+            _ = options;
+            try std.fmt.format(writer, "{}", .{value});
         }
     };
 }
