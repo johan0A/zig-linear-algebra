@@ -194,31 +194,19 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
             return @call(.always_inline, normAdv, .{ self, default_precision });
         }
 
-        /// Returns a new vector with the same direction as the original vector, but with a norm of 1.
-        ///
-        /// the precsion parameter is the number of bits of the output.
-        /// the precision of the calculations will match the precision of the output type.
-        pub fn normalizeAdv(self: Self, ReturnT: type) Vec(n, ReturnT) {
-            const precision = switch (@typeInfo(ReturnT)) {
-                .Float => @typeInfo(ReturnT).Float.bits,
-                .Int => @typeInfo(ReturnT).Int.bits,
-                else => @compileError("unsupported type: ReturnT type must be of type integer or float"),
-            };
-
-            const self_norm = castEnsureType(ReturnT, self.normAdv(precision));
-
-            return .{
-                .vals = castEnsureType(@Vector(n, ReturnT), self.vals) /
-                    @as(@Vector(n, ReturnT), @splat(self_norm)),
-            };
-        }
-
-        /// Returns a new vector with the same direction as the original vector, but with a norm of 1.
-        ///
-        /// the precision of the output is the number of bits of the Vector type T.
-        /// see `normalizeAdv` for more information.
+        /// Returns a new vector with the same direction as the original vector, but with a norm closest to 1.
         pub fn normalize(self: Self) Self {
-            return @call(.always_inline, normalizeAdv, .{ self, T });
+            const self_norm = switch (@typeInfo(T)) {
+                .Float => self.norm(),
+                .Int => @as(T, @intFromFloat(self.norm())),
+                else => unreachable,
+            };
+            return .{
+                .vals = self.vals / @as(
+                    @Vector(n, T),
+                    @splat(self_norm),
+                ),
+            };
         }
 
         /// Modifies the vector in place to have a norm of 1.
@@ -228,24 +216,8 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
         }
 
         /// Returns the dot product of the two vectors.
-        ///
-        /// the precsion parameter is the number of bits of the output.
-        /// the precision of the calculations will match the precision of the output type.
-        pub fn dotAdv(self: Self, other: Self, comptime precision: u8) Float(precision) {
-            checkPrecision(precision);
-            switch (@typeInfo(T)) {
-                .Float => return @reduce(.Add, self.vals * other.vals),
-                .Int => return @floatFromInt(@reduce(.Add, self.vals * other.vals)),
-                else => unreachable,
-            }
-        }
-
-        /// Returns the dot product of the two vectors.
-        ///
-        /// the precision of the output is the number of bits of the Vector type T.
-        /// see `dotAdv` for more information.
-        pub fn dot(self: Self, other: Self) Float(default_precision) {
-            return @call(.always_inline, dotAdv, .{ self, other, default_precision });
+        pub fn dot(self: Self, other: Self) T {
+            return @reduce(.Add, self.vals * other.vals);
         }
 
         /// Returns the cross product of two vectors.
@@ -291,7 +263,7 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
         /// the precsion parameter is the number of bits of the Vector type T.
         /// the precision of the calculations will match the precision of the output type.
         pub fn angleAdv(self: Self, other: Self, comptime precision: u8) Float(precision) {
-            const dotProduct = self.dotAdv(other, precision);
+            const dotProduct = self.dot(other);
             return std.math.acos(dotProduct / (self.normAdv(precision) * other.normAdv(precision)));
         }
 
@@ -305,11 +277,7 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
 
         /// Returns a new vector that is the reflection of the original vector on the given normal.
         pub fn reflect(self: Self, normal: Self) Self {
-            const dot_product = switch (@typeInfo(T)) {
-                .Float => self.dot(normal),
-                .Int => @as(T, @intFromFloat(self.dot(normal))),
-                else => unreachable,
-            };
+            const dot_product = self.dot(normal);
             return Self{
                 .vals = self.vals - (normal.vals *
                     @as(ValsType, @splat(2)) *
@@ -330,6 +298,18 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
         /// Returns the sum of all the values in the vector.
         pub fn sum(self: Self) T {
             return @reduce(.Add, self.vals);
+        }
+
+        /// Returns a new vector with a direction closest to the original vector, but with a magnitude scaled by the given value.
+        pub fn scale(self: Self, value: T) Self {
+            return Self{
+                .vals = self.vals * @as(@Vector(n, T), @splat(value)),
+            };
+        }
+
+        /// Modifies the vector in place to have a direction closest to the original vector, but with a magnitude scaled by the given value.
+        pub fn selfScale(self: *Self, value: T) void {
+            self.vals = self.vals * @as(T, @splat(value));
         }
 
         /// TODO: doc
@@ -354,6 +334,13 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
             return result;
         }
 
+        /// casts the vector to a new vector with a different type.
+        pub fn cast(self: Self, comptime ReturnT: type) Vec(n, ReturnT) {
+            return .{
+                .vals = castEnsureType(@Vector(n, ReturnT), self.vals),
+            };
+        }
+
         /// returns the number of elements of the vector.
         pub inline fn lenght(self: Self) usize {
             _ = self;
@@ -370,9 +357,6 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
 
 fn checkPrecision(comptime precision: u8) void {
     comptime {
-        if (precision > 128) {
-            @compileError("precision must be less or equal to 128");
-        }
         if (precision == 0) {
             @compileError("precision must be greater than 0");
         }
@@ -405,6 +389,12 @@ fn castEnsureType(comptime T: type, value: anytype) T {
         },
         else => unreachable,
     };
+}
+
+test "scale" {
+    const v = Vec(2, f32).init(.{ 1, 2 });
+    try std.testing.expectEqual(Vec(2, f32).init(.{ 2, 4 }), v.scale(2));
+    try std.testing.expectEqual(Vec(2, f32).init(.{ 0.5, 1 }), v.scale(0.5));
 }
 
 test "append" {
@@ -440,30 +430,6 @@ test "normAdv" {
     try std.testing.expectApproxEqRel(expected, v4.normAdv(16), 0.001);
     try std.testing.expectApproxEqRel(expected, v4.normAdv(32), 0.0000001);
     try std.testing.expectApproxEqRel(expected, v4.normAdv(64), 0.00000000001);
-}
-
-test "normalizeAdv" {
-    const v = Vec(2, i32).init(.{ 1, 2 });
-    const expected = Vec(2, f64).init(.{
-        0.4472135954999579392818,
-        0.8944271909999158785636,
-    });
-    try std.testing.expectApproxEqAbs(expected.x(), v.normalizeAdv(f32).x(), 0.0000001);
-    try std.testing.expectApproxEqAbs(expected.y(), v.normalizeAdv(f32).y(), 0.0000001);
-    try std.testing.expectApproxEqAbs(expected.x(), v.normalizeAdv(f64).x(), 0.00000000001);
-    try std.testing.expectApproxEqAbs(expected.y(), v.normalizeAdv(f64).y(), 0.00000000001);
-    const expected_int = Vec(2, i32).init(.{
-        0,
-        1,
-    });
-    try std.testing.expectEqual(expected_int.x(), v.normalizeAdv(i32).x());
-    try std.testing.expectEqual(expected_int.y(), v.normalizeAdv(i32).y());
-}
-
-test "dotAdv" {
-    const v1 = Vec(3, i32).init(.{ 1, 2, 3 });
-    const v2 = Vec(3, i32).init(.{ 3, 4, 5 });
-    try std.testing.expectEqual(26, v1.dotAdv(v2, 32));
 }
 
 test "angleAdv" {
