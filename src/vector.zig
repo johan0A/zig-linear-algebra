@@ -24,10 +24,8 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
             else => unreachable,
         };
 
-        /// the type of the values in the vector.
         pub const Type = T;
 
-        /// the number of elements in the vector.
         pub const len = n;
 
         const ValsType = @Vector(n, T);
@@ -47,7 +45,7 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
         }
 
         /// Returns the x component of the vector.
-        pub fn x(self: Self) T {
+        pub inline fn x(self: Self) T {
             if (n < 1) {
                 @compileError("Vector must have at least one element for x() to be defined");
             }
@@ -55,7 +53,7 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
         }
 
         /// Sets the x component of the vector.
-        pub fn setX(self: *Self, value: T) void {
+        pub inline fn setX(self: *Self, value: T) void {
             if (n < 1) {
                 @compileError("Vector must have at least one element for setX() to be defined");
             }
@@ -63,7 +61,7 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
         }
 
         /// Returns the y component of the vector.
-        pub fn y(self: Self) T {
+        pub inline fn y(self: Self) T {
             if (n < 2) {
                 @compileError("Vector must have at least two elements for y() to be defined");
             }
@@ -71,7 +69,7 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
         }
 
         /// Sets the y component of the vector.
-        pub fn setY(self: *Self, value: T) void {
+        pub inline fn setY(self: *Self, value: T) void {
             if (n < 2) {
                 @compileError("Vector must have at least two elements for setY() to be defined");
             }
@@ -79,7 +77,7 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
         }
 
         /// Returns the z component of the vector.
-        pub fn z(self: Self) T {
+        pub inline fn z(self: Self) T {
             if (n < 3) {
                 @compileError("Vector must have at least three elements for z() to be defined");
             }
@@ -87,7 +85,7 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
         }
 
         /// Sets the z component of the vector.
-        pub fn setZ(self: *Self, value: T) void {
+        pub inline fn setZ(self: *Self, value: T) void {
             if (n < 3) {
                 @compileError("Vector must have at least three elements for setZ() to be defined");
             }
@@ -95,7 +93,7 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
         }
 
         /// Returns the w component of the vector.
-        pub fn w(self: Self) T {
+        pub inline fn w(self: Self) T {
             if (n < 4) {
                 @compileError("Vector must have at least four elements for w() to be defined");
             }
@@ -103,7 +101,7 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
         }
 
         /// Sets the w component of the vector.
-        pub fn setW(self: *Self, value: T) void {
+        pub inline fn setW(self: *Self, value: T) void {
             if (n < 4) {
                 @compileError("Vector must have at least four elements for setW() to be defined");
             }
@@ -122,9 +120,9 @@ pub fn Vec(comptime n: usize, comptime T: type) type {
         /// this is also valid:
         /// ```
         /// const v = Vec(2, f32).init(.{ 1, 2, 3, 4 });
-        /// const v2 = v.swizzle("wx");
+        /// const v2 = v.swizzle("wxx");
         /// ```
-        /// here v2 is equal to `Vec(2, f32).init(.{ 4, 1 });`
+        /// here v2 is equal to `Vec(3, f32).init(.{ 4, 1, 1 });`
         pub fn swizzle(self: Self, comptime components: []const u8) Vec(components.len, T) {
             comptime var mask: [components.len]u8 = undefined;
             comptime var i: usize = 0;
