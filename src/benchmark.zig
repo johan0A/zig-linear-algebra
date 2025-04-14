@@ -130,9 +130,55 @@ test "benchmark matrix multiplication 256x256 * 256x256" {
     });
 }
 
+test "benchmark matrix multiplication 8x8 * 8x8" {
+    const size = 8;
+    const Matrix8 = Matrix(f32, size, size);
+    const a = matrixMaker(size, size);
+    const b = matrixMaker(size, size);
+
+    var timer = try std.time.Timer.start();
+
+    const n = 10;
+    for (0..n) |_| {
+        std.mem.doNotOptimizeAway(@call(.never_inline, Matrix8.mul, .{ a, b }));
+    }
+
+    const elapsed = timer.read();
+    std.debug.print("--------------------------------\n", .{});
+    std.debug.print("matrix multiplication benchmark:\n", .{});
+    std.debug.print("operation: 8x8 * 8x8 matrix multiplication\n", .{});
+    std.debug.print("time per operation: {d} ns\n", .{
+        @as(f64, @floatFromInt(elapsed)) / n,
+    });
+    std.debug.print("time per operation: {d} ms\n", .{
+        @as(f64, @floatFromInt(elapsed)) / n / 1000000,
+    });
+}
+
+test "benchmark matrix multiplication 4x4 * 4x4" {
+    const Mat4 = Matrix(f32, 4, 4);
+    const a = matrixMaker(4, 4);
+    const b = matrixMaker(4, 4);
+
+    var timer = try std.time.Timer.start();
+
+    const n = 10000000;
+    for (0..n) |_| {
+        std.mem.doNotOptimizeAway(@call(.never_inline, Mat4.mul, .{ a, b }));
+    }
+
+    const elapsed = timer.read();
+    std.debug.print("--------------------------------\n", .{});
+    std.debug.print("matrix multiplication benchmark:\n", .{});
+    std.debug.print("operation: 4x4 * 4x4 matrix multiplication\n", .{});
+    std.debug.print("time per operation: {d} ns\n", .{
+        @as(f64, @floatFromInt(elapsed)) / n,
+    });
+}
+
 fn matrixMaker(comptime rows: usize, comptime cols: usize) Matrix(f32, rows, cols) {
     var result = Matrix(f32, rows, cols).init(undefined);
-    for (&result.data, 0..) |*row, i| {
+    for (&result.items, 0..) |*row, i| {
         for (row, 0..) |*col, j| {
             col.* = @floatFromInt(i * cols + j);
         }
