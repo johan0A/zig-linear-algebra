@@ -5,6 +5,7 @@
 - [x] add doc comments for Vector operations
 - [x] add more operations to Vectors
 - [x] rework how precision of output types is handled for vectors again
-- [ ] Add more operations to Matrices
+- [x] Add more operations to Matrices
+- [ ] add testing to matrices operations
 - [ ] add install guide
 - [ ] add usage guide
