@@ -35,13 +35,13 @@ pub fn Mat(comptime T: type, comptime cols: usize, comptime rows: usize) type {
         }
 
         /// Scalar multiplication
-        pub fn scale(self: Self, scalar: T) Self {
+        pub fn scalarMul(self: Self, scalar: T) Self {
             const items: [rows * cols]T = @bitCast(self.items);
             var result_items: [rows * cols]T = undefined;
             for (&result_items, items) |*result_item, item| {
                 result_item.* = item * scalar;
             }
-            return Self.fromCM(@bitCast(items));
+            return Self.fromCM(@bitCast(result_items));
         }
 
         // `other` can be a scalar or a matrix with the same number of rows as the numbers of columns of `self`
@@ -136,6 +136,58 @@ pub fn Mat(comptime T: type, comptime cols: usize, comptime rows: usize) type {
             return result;
         }
 
+        pub fn translate(self: Self, vector: @Vector(rows - 1, T)) Self {
+            if (rows != cols) @compileError("Transform matrix must be square");
+            var result = self;
+            result.items[cols - 1][0 .. rows - 1].* = self.items[cols - 1][0 .. rows - 1].* + vector;
+            return result;
+        }
+
+        pub inline fn selfTranslate(self: *Self, vector: @Vector(rows - 1, T)) void {
+            self.* = self.translate(vector);
+        }
+
+        /// Scaling transform matrix
+        pub fn scale(self: Self, factors: @Vector(rows - 1, T)) Self {
+            if (rows != cols) @compileError("Transform matrix must be square");
+
+            var result = self;
+            for (0..rows - 1) |i| {
+                result.items[i][0 .. cols - 1].* = self.items[i][0 .. cols - 1].* * factors;
+            }
+
+            return result;
+        }
+
+        pub inline fn selfScale(self: *Self, vector: @Vector(rows - 1, T)) void {
+            self.* = self.scale(vector);
+        }
+
+        pub fn rotate(self: Self, angle: T, axis: @Vector(rows, T)) Self {
+            if (rows != cols) @compileError("Transform matrix must be square");
+            if (rows != 4 or cols != 4) @compileError("unsuported dimensions, only suports 4x4");
+
+            const a = vec.normalize(axis);
+            const c = std.math.cos(angle);
+            const s = std.math.sin(angle);
+            const t = 1.0 - c;
+
+            const rot = Self{
+                .items = .{
+                    .{ t * a[0] * a[0] + c, t * a[0] * a[1] + s * a[2], t * a[0] * a[2] - s * a[1], 0 },
+                    .{ t * a[0] * a[1] - s * a[2], t * a[1] * a[1] + c, t * a[1] * a[2] + s * a[0], 0 },
+                    .{ t * a[0] * a[2] + s * a[1], t * a[1] * a[2] - s * a[0], t * a[2] * a[2] + c, 0 },
+                    .{ 0, 0, 0, 1 },
+                },
+            };
+
+            return self.mul(rot);
+        }
+
+        pub inline fn selfRotate(self: *Self, angle: T, axis: @Vector(3, T)) void {
+            self.* = self.rotate(angle, axis);
+        }
+
         pub const identity = blk: {
             if (rows != cols) @compileError("Identity matrix must be square");
             var result: Self = .zero;
@@ -195,7 +247,18 @@ pub fn Mat(comptime T: type, comptime cols: usize, comptime rows: usize) type {
     };
 }
 
-test "Matrix multiplication" {
+test "translate" {
+    const c = Mat(f32, 4, 4).identity.translate(.{ 1, 2, 3 });
+    const excpected_c: Mat(f32, 4, 4) = .fromRM(.{
+        .{ 1, 0, 0, 1 },
+        .{ 0, 1, 0, 2 },
+        .{ 0, 0, 1, 3 },
+        .{ 0, 0, 0, 1 },
+    });
+    try std.testing.expectEqual(excpected_c, c);
+}
+
+test "mul" {
     {
         const a = Mat(f32, 2, 2).fromCM(.{
             .{ 1, 2 },

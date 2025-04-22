@@ -3,7 +3,7 @@ const std = @import("std");
 const Float = std.meta.Float;
 
 pub fn info(T: type) std.builtin.Type.Vector {
-    if (@typeInfo(T) != .vector) @compileError("Excpected a @Vector type got: " ++ @typeName(T));
+    if (@typeInfo(T) != .vector) @compileError("Expected a @Vector type got: " ++ @typeName(T));
     return @typeInfo(T).vector;
 }
 
