@@ -1,14 +1,12 @@
 const std = @import("std");
 const vec = @import("./root.zig").vec;
 
-/// column major matrix type
+/// column major generic matrix type
 pub fn Mat(comptime T: type, comptime cols: usize, comptime rows: usize) type {
     return struct {
         const Self = @This();
 
-        const alignement = @alignOf(@Vector(rows, T));
-
-        items: [cols][rows]T align(alignement),
+        items: [cols][rows]T,
 
         comptime rows: comptime_int = rows,
         comptime cols: comptime_int = cols,
@@ -145,6 +143,11 @@ pub fn Mat(comptime T: type, comptime cols: usize, comptime rows: usize) type {
 
         pub inline fn selfTranslate(self: *Self, vector: @Vector(rows - 1, T)) void {
             self.* = self.translate(vector);
+        }
+
+        pub inline fn position(self: Self) @Vector(rows - 1, T) {
+            if (rows != cols) @compileError("Transform matrix must be square");
+            return self.items[cols - 1][0 .. rows - 1].*;
         }
 
         /// Scaling transform matrix
