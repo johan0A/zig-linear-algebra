@@ -2,18 +2,22 @@ const std = @import("std");
 const vec = @import("./root.zig").vec;
 
 /// column major generic matrix type
-pub fn Mat(comptime T: type, comptime cols: usize, comptime rows: usize) type {
-    return struct {
+pub fn Mat(comptime T: type, comptime cols_: usize, comptime rows_: usize) type {
+    return extern struct {
         const Self = @This();
 
         items: [cols][rows]T,
 
-        comptime rows: comptime_int = rows,
-        comptime cols: comptime_int = cols,
-        comptime Type: type = T,
+        // comptime rows: comptime_int = rows, TODO: open an issue about comptime fields not being allowed on extern structs
+        // comptime cols: comptime_int = cols,
+        // comptime Type: type = T,
+
+        pub const rows: comptime_int = rows_;
+        pub const cols: comptime_int = cols_;
+        pub const Type: type = T;
 
         pub inline fn fromCM(values: [cols][rows]T) Self {
-            return Self{ .items = values };
+            return .{ .items = values };
         }
 
         /// performs a transpose operation, usefull for more human readable mat literals
@@ -39,19 +43,19 @@ pub fn Mat(comptime T: type, comptime cols: usize, comptime rows: usize) type {
             for (&result_items, items) |*result_item, item| {
                 result_item.* = item * scalar;
             }
-            return Self.fromCM(@bitCast(result_items));
+            return .fromCM(@bitCast(result_items));
         }
 
         // `other` can be a scalar or a matrix with the same number of rows as the numbers of columns of `self`
-        pub fn mul(self: Self, other: anytype) Mat(T, other.cols, self.rows) {
-            if (self.cols != other.rows) @compileError("number of columns of self must be equal to number of rows of other");
-            if (self.Type != other.Type) @compileError("type of self must be equal to Type of other");
+        pub fn mul(self: Self, other: anytype) Mat(T, @TypeOf(other).cols, Self.rows) {
+            if (Self.cols != @TypeOf(other).rows) @compileError("number of columns of self must be equal to number of rows of other");
+            if (Self.Type != @TypeOf(other).Type) @compileError("type of self must be equal to Type of other");
             const Wt = @Vector(rows, T);
 
-            var result: Mat(T, other.cols, self.rows) = undefined;
-            for (0..result.cols) |i| {
+            var result: Mat(T, @TypeOf(other).cols, Self.rows) = undefined;
+            for (0..@TypeOf(result).cols) |i| {
                 result.items[i] = @as(Wt, self.items[0]) * @as(Wt, @splat(other.items[i][0]));
-                for (1..self.cols) |j| {
+                for (1..Self.cols) |j| {
                     result.items[i] = @as(Wt, result.items[i]) + @as(Wt, self.items[j]) * @as(Wt, @splat(other.items[i][j]));
                 }
             }
@@ -77,7 +81,7 @@ pub fn Mat(comptime T: type, comptime cols: usize, comptime rows: usize) type {
         }
 
         pub fn sub(self: Self, other: Self) Self {
-            var result = Self{ .items = undefined };
+            var result: Self = .{ .items = undefined };
             for (0..cols) |c| {
                 for (0..rows) |r| {
                     result.items[c][r] = self.items[c][r] - other.items[c][r];
@@ -96,7 +100,7 @@ pub fn Mat(comptime T: type, comptime cols: usize, comptime rows: usize) type {
 
             const tanHalfFovy = std.math.tan(fovy / 2);
 
-            var result = Self.zero;
+            var result: Self = .zero;
             result.items[0][0] = 1.0 / (aspect * tanHalfFovy);
             result.items[1][1] = 1.0 / tanHalfFovy;
             result.items[2][2] = far / (near - far);
@@ -114,7 +118,7 @@ pub fn Mat(comptime T: type, comptime cols: usize, comptime rows: usize) type {
             const s = vec.normalize(vec.cross(f, up));
             const u = vec.cross(s, f);
 
-            var result = Self.identity;
+            var result: Self = .identity;
             result.items[0][0] = s[0];
             result.items[1][0] = s[1];
             result.items[2][0] = s[2];
@@ -175,7 +179,7 @@ pub fn Mat(comptime T: type, comptime cols: usize, comptime rows: usize) type {
             const s = std.math.sin(angle);
             const t = 1.0 - c;
 
-            const rot = Self{
+            const rot: Self = .{
                 .items = .{
                     .{ t * a[0] * a[0] + c, t * a[0] * a[1] + s * a[2], t * a[0] * a[2] - s * a[1], 0 },
                     .{ t * a[0] * a[1] - s * a[2], t * a[1] * a[1] + c, t * a[1] * a[2] + s * a[0], 0 },
