@@ -22,7 +22,7 @@ pub fn info(T: type) std.builtin.Type.Vector {
 /// const v2 = v.sw("wxx");
 /// ```
 /// here v2 is equal to `Vec(3, f32).init(.{ 4, 1, 1 });`
-pub fn sw(vec: anytype, comptime components: []const u8) @Vector(components.len, info(@TypeOf(vec)).child) {
+pub fn swizzle(vec: anytype, comptime components: []const u8) @Vector(components.len, info(@TypeOf(vec)).child) {
     const T = info(@TypeOf(vec)).child;
     comptime var mask: [components.len]u8 = undefined;
     comptime var i: usize = 0;
@@ -165,13 +165,13 @@ test scale {
     try std.testing.expectEqual(@Vector(2, f32){ 0.5, 1 }, scale(v, 0.5));
 }
 
-test sw {
+test swizzle {
     const v = @Vector(2, f32){ 1, 2 };
-    try std.testing.expectEqual(@as(f32, 2), sw(v, "yx")[0]);
-    try std.testing.expectEqual(@as(f32, 1), sw(v, "yx")[1]);
+    try std.testing.expectEqual(@as(f32, 2), swizzle(v, "yx")[0]);
+    try std.testing.expectEqual(@as(f32, 1), swizzle(v, "yx")[1]);
     const v2 = @Vector(3, f32){ 1, 2, 3 };
     const v2_expected = @Vector(3, f32){ 2, 3, 1 };
-    try std.testing.expectEqual(v2_expected, sw(v2, "yzx"));
+    try std.testing.expectEqual(v2_expected, swizzle(v2, "yzx"));
 }
 
 test angleAdv {

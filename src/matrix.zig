@@ -16,18 +16,18 @@ pub fn Mat(comptime T: type, comptime cols_: usize, comptime rows_: usize) type 
         pub const cols: comptime_int = cols_;
         pub const Type: type = T;
 
-        pub inline fn fromCM(values: [cols][rows]T) Self {
+        pub inline fn from_column_major(values: [cols][rows]T) Self {
             return .{ .items = values };
         }
 
         /// performs a transpose operation, usefull for more human readable mat literals
-        pub inline fn fromRM(values: [rows][cols]T) Self {
-            return Mat(T, rows, cols).fromCM(values).transpose();
+        pub inline fn from_row_major(values: [rows][cols]T) Self {
+            return Mat(T, rows, cols).from_column_major(values).transpose();
         }
 
         // generated code seams fast but tbd
         pub fn transpose(self: Self) Mat(T, rows, cols) {
-            var result: Mat(T, rows, cols) = .fromCM(undefined);
+            var result: Mat(T, rows, cols) = .from_column_major(undefined);
             for (0..cols) |c| {
                 for (0..rows) |r| {
                     result.items[r][c] = self.items[c][r];
@@ -37,13 +37,13 @@ pub fn Mat(comptime T: type, comptime cols_: usize, comptime rows_: usize) type 
         }
 
         /// Scalar multiplication
-        pub fn scalarMul(self: Self, scalar: T) Self {
+        pub fn scalar_mul(self: Self, scalar: T) Self {
             const items: [rows * cols]T = @bitCast(self.items);
             var result_items: [rows * cols]T = undefined;
             for (&result_items, items) |*result_item, item| {
                 result_item.* = item * scalar;
             }
-            return .fromCM(@bitCast(result_items));
+            return .from_column_major(@bitCast(result_items));
         }
 
         // `other` can be a scalar or a matrix with the same number of rows as the numbers of columns of `self`
@@ -76,9 +76,41 @@ pub fn Mat(comptime T: type, comptime cols_: usize, comptime rows_: usize) type 
             return result;
         }
 
-        pub inline fn selfAdd(self: *Self, other: Self) void {
-            self.* = self.add(other);
+        pub inline fn modify_row(self: Self, index: usize, v: anytype) Self {
+            const info = vec.info(@TypeOf(v));
+            if (info.len > cols) @compileError("row length must be less than or equal to number of columns");
+            var result = self;
+            for (0..info.len) |i| {
+                result.items[i][index] = v[i];
+            }
+            return result;
         }
+
+        pub inline fn modify_column(self: Self, index: usize, v: anytype) Self {
+            const info = vec.info(@TypeOf(v));
+            if (info.len > rows) @compileError("column length must be less than or equal to number of rows");
+            var result = self;
+            for (0..info.len) |i| {
+                result.items[index][i] = v[i];
+            }
+            return result;
+        }
+
+        pub inline fn column(self: Self, index: usize) @Vector(rows, T) {
+            return self.items[index];
+        }
+
+        pub inline fn row(self: Self, index: usize) @Vector(cols, T) {
+            var result: @Vector(cols, T) = undefined;
+            for (0..cols) |c| {
+                result[c] = self.items[c][index];
+            }
+            return result;
+        }
+
+        //pub inline fn self_add(self: *Self, other: Self) void {
+        //    self.* = self.add(other);
+        //}
 
         pub fn sub(self: Self, other: Self) Self {
             var result: Self = .{ .items = undefined };
@@ -90,9 +122,9 @@ pub fn Mat(comptime T: type, comptime cols_: usize, comptime rows_: usize) type 
             return result;
         }
 
-        pub inline fn selfSub(self: *Self, other: Self) void {
-            self.* = self.sub(other);
-        }
+        //pub inline fn self_sub(self: *Self, other: Self) void {
+        //    self.* = self.sub(other);
+        //}
 
         /// create a perspective projection matrix
         pub fn perspective(fovy: T, aspect: T, near: T, far: T) Self {
@@ -145,9 +177,9 @@ pub fn Mat(comptime T: type, comptime cols_: usize, comptime rows_: usize) type 
             return result;
         }
 
-        pub inline fn selfTranslate(self: *Self, vector: @Vector(rows - 1, T)) void {
-            self.* = self.translate(vector);
-        }
+        //pub inline fn self_translate(self: *Self, vector: @Vector(rows - 1, T)) void {
+        //    self.* = self.translate(vector);
+        //}
 
         pub inline fn position(self: Self) @Vector(rows - 1, T) {
             if (rows != cols) @compileError("Transform matrix must be square");
@@ -166,9 +198,9 @@ pub fn Mat(comptime T: type, comptime cols_: usize, comptime rows_: usize) type 
             return result;
         }
 
-        pub inline fn selfScale(self: *Self, vector: @Vector(rows - 1, T)) void {
-            self.* = self.scale(vector);
-        }
+        //pub inline fn self_scale(self: *Self, vector: @Vector(rows - 1, T)) void {
+        //    self.* = self.scale(vector);
+        //}
 
         pub fn rotate(self: Self, angle: T, axis: @Vector(rows, T)) Self {
             if (rows != cols) @compileError("Transform matrix must be square");
@@ -191,9 +223,9 @@ pub fn Mat(comptime T: type, comptime cols_: usize, comptime rows_: usize) type 
             return self.mul(rot);
         }
 
-        pub inline fn selfRotate(self: *Self, angle: T, axis: @Vector(3, T)) void {
-            self.* = self.rotate(angle, axis);
-        }
+        //pub inline fn self_rotate(self: *Self, angle: T, axis: @Vector(3, T)) void {
+        //    self.* = self.rotate(angle, axis);
+        //}
 
         pub const identity = blk: {
             if (rows != cols) @compileError("Identity matrix must be square");
@@ -204,7 +236,7 @@ pub fn Mat(comptime T: type, comptime cols_: usize, comptime rows_: usize) type 
             break :blk result;
         };
 
-        pub const zero: Self = .fromCM(@splat(@splat(0)));
+        pub const zero: Self = .from_column_major(@splat(@splat(0)));
 
         // TODO: doc
         pub fn format(
@@ -256,7 +288,7 @@ pub fn Mat(comptime T: type, comptime cols_: usize, comptime rows_: usize) type 
 
 test "translate" {
     const c = Mat(f32, 4, 4).identity.translate(.{ 1, 2, 3 });
-    const excpected_c: Mat(f32, 4, 4) = .fromRM(.{
+    const excpected_c: Mat(f32, 4, 4) = .from_row_major(.{
         .{ 1, 0, 0, 1 },
         .{ 0, 1, 0, 2 },
         .{ 0, 0, 1, 3 },
@@ -265,19 +297,37 @@ test "translate" {
     try std.testing.expectEqual(excpected_c, c);
 }
 
+test "modify_column" {
+    var m = Mat(f32, 4, 4).zero;
+    m = m.modify_column(0, @Vector(4, f32){ 1, 2, 3, 4 });
+    try std.testing.expectEqual(m.column(0), .{ 1, 2, 3, 4 });
+    m = m.modify_column(0, @Vector(3, f32){ 5, 6, 7 });
+    try std.testing.expectEqual(m.column(0), .{ 5, 6, 7, 4 });
+
+    m = m.modify_column(0, @Vector(4, f32){ 8, 9, 10, 0 });
+    m = m.modify_column(1, @Vector(4, f32){ 11, 12, 13, 0 });
+    m = m.modify_column(2, @Vector(4, f32){ 14, 15, 16, 0 });
+    m = m.modify_column(3, @Vector(4, f32){ 17, 18, 19, 0 });
+
+    try std.testing.expectEqual(m.column(0), .{ 8, 9, 10, 0 });
+    try std.testing.expectEqual(m.column(1), .{ 11, 12, 13, 0 });
+    try std.testing.expectEqual(m.column(2), .{ 14, 15, 16, 0 });
+    try std.testing.expectEqual(m.position(), .{ 17, 18, 19 });
+}
+
 test "mul" {
     {
-        const a = Mat(f32, 2, 2).fromCM(.{
+        const a = Mat(f32, 2, 2).from_column_major(.{
             .{ 1, 2 },
             .{ 3, 4 },
         });
-        const b = Mat(f32, 2, 2).fromCM(.{
+        const b = Mat(f32, 2, 2).from_column_major(.{
             .{ 5, 6 },
             .{ 7, 8 },
         });
         const c = a.mul(b);
 
-        const excpected_c = Mat(f32, 2, 2).fromCM(.{
+        const excpected_c = Mat(f32, 2, 2).from_column_major(.{
             .{ 23, 34 },
             .{ 31, 46 },
         });
@@ -285,18 +335,18 @@ test "mul" {
     }
 
     {
-        const a = Mat(f32, 2, 3).fromCM(.{
+        const a = Mat(f32, 2, 3).from_column_major(.{
             .{ 1, 2, 3 },
             .{ 4, 5, 6 },
         });
-        const b = Mat(f32, 3, 2).fromCM(.{
+        const b = Mat(f32, 3, 2).from_column_major(.{
             .{ 1, 2 },
             .{ 3, 4 },
             .{ 5, 6 },
         });
         const c = a.mul(b);
 
-        const excpected_c = Mat(f32, 3, 3).fromCM(.{
+        const excpected_c = Mat(f32, 3, 3).from_column_major(.{
             .{ 9, 12, 15 },
             .{ 19, 26, 33 },
             .{ 29, 40, 51 },
@@ -305,13 +355,13 @@ test "mul" {
     }
 
     {
-        const a = Mat(f32, 4, 4).fromCM(.{
+        const a = Mat(f32, 4, 4).from_column_major(.{
             .{ 1, 2, 3, 4 },
             .{ 5, 6, 7, 8 },
             .{ 9, 10, 11, 12 },
             .{ 13, 14, 15, 16 },
         });
-        const b = Mat(f32, 4, 4).fromCM(.{
+        const b = Mat(f32, 4, 4).from_column_major(.{
             .{ 17, 18, 19, 20 },
             .{ 21, 22, 23, 24 },
             .{ 25, 26, 27, 28 },
@@ -319,7 +369,7 @@ test "mul" {
         });
         const c = a.mul(b);
 
-        const excpected_c = Mat(f32, 4, 4).fromCM(.{
+        const excpected_c = Mat(f32, 4, 4).from_column_major(.{
             .{ 538, 612, 686, 760 },
             .{ 650, 740, 830, 920 },
             .{ 762, 868, 974, 1080 },
