@@ -1,8 +1,6 @@
 const std = @import("std");
 const vec = @import("./root.zig").vec;
 
-
-
 /// column major generic matrix type
 pub fn Mat(comptime T: type, comptime cols_: usize, comptime rows_: usize) type {
     return extern struct {

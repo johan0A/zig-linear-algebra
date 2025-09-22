@@ -13,6 +13,7 @@ pub fn zero(comptime T: type) @Vector(4, T) {
     return .{ 0, 0, 0, 0 };
 }
 
+
 // Create quaternion that rotates a vector from the direction of inFrom to the direction of inTo along the shortest path
 // @see https://www.euclideanspace.com/maths/algebra/vectors/angleBetween/index.htm
 pub fn from_to(from: anytype, to: @TypeOf(from)) @Vector(4, info(@TypeOf(from)).child) {
@@ -44,7 +45,6 @@ pub fn from_to(from: anytype, to: @TypeOf(from)) @Vector(4, info(@TypeOf(from)).
     //w = |v1||v2| + v1 . v2
 
     //which then needs to be normalized because the whole equation was multiplied by 2 cos(angle / 2)
-
     const len_v1_v2 = std.math.sqrt(vector.norm_sqr(from) * vector.norm_sqr(to));
     const w = len_v1_v2 + vector.dot(from, to);
     if (w == 0.0) {
@@ -58,6 +58,7 @@ pub fn from_to(from: anytype, to: @TypeOf(from)) @Vector(4, info(@TypeOf(from)).
     const v = vector.cross(from, to);
     return vector.norm(@Vector(4, info(@TypeOf(from)).child){ v[0], v[1], v[2], w });
 }
+
 
 pub fn from_eular_angles(inAngles: anytype) @Vector(4, info(@TypeOf(inAngles)).child) {
     if (info(@TypeOf(inAngles)).len != 3) @compileError("vector must have three elements for from_eular_angles() to be defined");
@@ -76,6 +77,17 @@ pub fn from_eular_angles(inAngles: anytype) @Vector(4, info(@TypeOf(inAngles)).c
               cz * cx * sy + sz * sx * cy, 
               sz * cx * cy - cz * sx * sy, 
               cz * cx * cy + sz * sx * sy };
+}
+
+pub fn get_twist(inAxis: anytype) @Vector(4, info(@TypeOf(inAxis)).child) {
+    if (info(@TypeOf(inAxis)).len != 4) @compileError("vector must have four elements for get_twist() to be defined");
+    const dir = vector.dot(vector.extract(inAxis, 3), inAxis) * inAxis;
+    const twist: @Vector(4, info(@TypeOf(inAxis)).child) = .{ dir[0], dir[1], dir[2], inAxis[3] };
+    const twist_len = vector.norm_sqr(twist);
+    if (twist_len == 0.0) {
+        return twist / @as(@Vector(4, info(@TypeOf(inAxis)).child), @splat(std.math.sqrt(twist_len)));
+    }
+    return identity(info(@TypeOf(inAxis)).child);
 }
 
 pub fn to_eular_angles(q: anytype) @Vector(3, info(@TypeOf(q)).child) {
