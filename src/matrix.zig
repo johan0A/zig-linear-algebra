@@ -1,6 +1,8 @@
 const std = @import("std");
 const vec = @import("./root.zig").vec;
 
+
+
 /// column major generic matrix type
 pub fn Mat(comptime T: type, comptime cols_: usize, comptime rows_: usize) type {
     return extern struct {
@@ -9,7 +11,6 @@ pub fn Mat(comptime T: type, comptime cols_: usize, comptime rows_: usize) type 
         pub const cols: comptime_int = cols_;
         pub const Type: type = T;
         pub const is_square: bool = rows == cols;
-        
 
         items: [cols][rows]T,
 

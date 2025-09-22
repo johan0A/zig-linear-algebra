@@ -13,6 +13,8 @@ pub fn zero(comptime T: type) @Vector(4, T) {
     return .{ 0, 0, 0, 0 };
 }
 
+// Create quaternion that rotates a vector from the direction of inFrom to the direction of inTo along the shortest path
+// @see https://www.euclideanspace.com/maths/algebra/vectors/angleBetween/index.htm
 pub fn from_to(from: anytype, to: @TypeOf(from)) @Vector(4, info(@TypeOf(from)).child) {
     if (info(@TypeOf(from)).len != 3) @compileError("Expected a 3D vector type got: " ++ @typeName(@TypeOf(from)));
     //Uses (inFrom = v1, inTo = v2):
@@ -57,23 +59,44 @@ pub fn from_to(from: anytype, to: @TypeOf(from)) @Vector(4, info(@TypeOf(from)).
     return vector.norm(@Vector(4, info(@TypeOf(from)).child){ v[0], v[1], v[2], w });
 }
 
-//pub fn from_eular_angles(inAngles: anytype) @Vector(4, info(@TypeOf(inAngles)).child) {
-//    if (info(@TypeOf(inAngles)).len != 3)  @compileError("vector must have three elements for from_eular_angles() to be defined");
-//    const half = @as(@TypeOf(inAngles), @splat(0.5)) * inAngles;
-//    std.math.sin
-//
-//    const half = @as(@TypeOf(inAngles), @splat(0.5));
-//    const c1 = std.math.cos(inAngles[0] * half);
-//    const c2 = std.math.cos(inAngles[1] * half);
-//    const c3 = std.math.cos(inAngles[2] * half);
-//    const s1 = std.math.sin(inAngles[0] * half);
-//    const s2 = std.math.sin(inAngles[1] * half);
-//    const s3 = std.math.sin(inAngles[2] * half);
-//
-//    return .{
-//        s1 * c2 * c3 - c1 * s2 * s3,
-//        c1 * s2 * c3 + s1 * c2 * s3,
-//        c1 * c2 * s3 - s1 * s2 * c3,
-//        c1 * c2 * c3 + s1 * s2 * s3,
-//    };
-//}
+pub fn from_eular_angles(inAngles: anytype) @Vector(4, info(@TypeOf(inAngles)).child) {
+    if (info(@TypeOf(inAngles)).len != 3) @compileError("vector must have three elements for from_eular_angles() to be defined");
+
+    const half = @as(@TypeOf(inAngles), @splat(0.5)) * inAngles;
+    const res = vector.sin_cos(half);
+
+    const cx = res.cos_out[0];
+    const sx = res.sin_out[0];
+    const cy = res.cos_out[1];
+    const sy = res.sin_out[1];
+    const cz = res.cos_out[2];
+    const sz = res.sin_out[2];
+
+    return .{ cz * sx * cy - sz * cx * sy, 
+              cz * cx * sy + sz * sx * cy, 
+              sz * cx * cy - cz * sx * sy, 
+              cz * cx * cy + sz * sx * sy };
+}
+
+pub fn to_eular_angles(q: anytype) @Vector(3, info(@TypeOf(q)).child) {
+    if (info(@TypeOf(q)).len != 4) @compileError("vector must have four elements for to_eular_angles() to be defined");
+
+    const ysqr = q[1] * q[1];
+
+    // roll (x-axis rotation)
+    const t0 = 2.0 * (q[3] * q[0] + q[1] * q[2]);
+    const t1 = 1.0 - 2.0 * (q[0] * q[0] + ysqr);
+    const roll = std.math.atan2(t0, t1);
+
+    // pitch (y-axis rotation)
+    var t2 = 2.0 * (q[3] * q[1] - q[2] * q[0]);
+    t2 = if (t2 > 1.0) 1.0 else if (t2 < -1.0) -1.0 else t2;
+    const pitch = std.math.asin(t2);
+
+    // yaw (z-axis rotation)
+    const t3 = 2.0 * (q[3] * q[2] + q[0] * q[1]);
+    const t4 = 1.0 - 2.0 * (ysqr + q[2] * q[2]);
+    const yaw = std.math.atan2(t3, t4);
+
+    return .{ roll, pitch, yaw };
+}

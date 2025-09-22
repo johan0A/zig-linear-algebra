@@ -1,3 +1,10 @@
+// Jolt Physics Library (https://github.com/jrouwe/JoltPhysics)
+// SPDX-FileCopyrightText: 2021 Jorrit Rouwe
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2025 Michael Pollind 
+
+
+
 const std = @import("std");
 const Mat = @import("matrix.zig").Mat;
 const testing = @import("testing.zig");
@@ -450,4 +457,25 @@ test sin_cos {
     const res = sin_cos(input);
     try testing.expect_is_close(res.cos_out, @Vector(4, f32){ 1, 0, -1, 0 }, 0.0001);
     try testing.expect_is_close(res.sin_out, @Vector(4, f32){ 0, 1.0, 0, -1.0 }, 0.0001);
+    
+    var ms: f64 = 0.0;
+    var mc: f64 = 0.0;
+
+    var x: f32 = -100.0 * std.math.pi;
+    while(x < 100.0 * std.math.pi) : (x += 1.0e-3) {
+        const xv = @as(Vec4f32, @splat(x)) + Vec4f32{0.0e-4, 2.5e-4, 5.0e-4, 7.5e-4};
+        const res2 = sin_cos(xv);
+        for(0..3) |i| {
+            const s1 = std.math.sin(xv[i]);
+            const s2 = res2.sin_out[i];
+            ms = @max(ms, @abs(s1 - s2));
+
+            const c1 = std.math.cos(xv[i]);
+            const c2 = res2.cos_out[i];
+            mc = @max(mc, @abs(c1 - c2));
+        }
+    }
+    try std.testing.expect(ms < 1.0e-7);
+    try std.testing.expect(mc < 1.0e-7);
+
 }
