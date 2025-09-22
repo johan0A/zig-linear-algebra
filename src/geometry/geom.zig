@@ -1,9 +1,8 @@
 const std = @import("std");
 const vec = @import("../vector.zig");
 
-const aabb = @import("aabb.zig");
-const AABB = @import("aabb.zig").AABB;
-const Plane = @import("plane.zig").Plane;
+pub const AABB = @import("aabb.zig").AABB;
+pub const Plane = @import("plane.zig").Plane;
 
 pub fn get_vector_from_buffer(comptime T: type, vertex_index: usize, buffer: []align(4) const u8, byte_offset: usize, byte_stride: usize) T {
     const info = vec.info(T);
@@ -22,7 +21,6 @@ pub fn get_vector_from_buffer(comptime T: type, vertex_index: usize, buffer: []a
 
 test {
     @import("std").testing.refAllDeclsRecursive(@This());
-    _ = aabb;
 }
 
 

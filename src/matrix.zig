@@ -5,16 +5,13 @@ const vec = @import("./root.zig").vec;
 pub fn Mat(comptime T: type, comptime cols_: usize, comptime rows_: usize) type {
     return extern struct {
         const Self = @This();
-
-        items: [cols][rows]T,
-
-        // comptime rows: comptime_int = rows, TODO: open an issue about comptime fields not being allowed on extern structs
-        // comptime cols: comptime_int = cols,
-        // comptime Type: type = T,
-
         pub const rows: comptime_int = rows_;
         pub const cols: comptime_int = cols_;
         pub const Type: type = T;
+        pub const is_square: bool = rows == cols;
+        
+
+        items: [cols][rows]T,
 
         pub inline fn from_column_major(values: [cols][rows]T) Self {
             return .{ .items = values };
@@ -24,6 +21,24 @@ pub fn Mat(comptime T: type, comptime cols_: usize, comptime rows_: usize) type 
         pub inline fn from_row_major(values: [rows][cols]T) Self {
             return Mat(T, rows, cols).from_column_major(values).transpose();
         }
+
+        //pub fn to_vector_major(self: Self) @Vector(cols, T) {
+        //    if(rows != 1) @compileError("to_vector_major only works on matrices with one row");
+        //    var result: @Vector(cols, T) = undefined;
+        //    for (0..cols) |c| {
+        //        result[c] = self.items[c][0];
+        //    }
+        //    return result;
+        //} 
+
+        //pub fn to_vector_row(self: Self) @Vector(rows, T) {
+        //    if(cols != 1) @compileError("to_vector_row only works on matrices with one column");
+        //    var result: @Vector(rows, T) = undefined;
+        //    for (0..rows) |r| {
+        //        result[r] = self.items[0][r];
+        //    }
+        //    return result;
+        //}
 
         // generated code seams fast but tbd
         pub fn transpose(self: Self) Mat(T, rows, cols) {
@@ -60,10 +75,6 @@ pub fn Mat(comptime T: type, comptime cols_: usize, comptime rows_: usize) type 
                 }
             }
             return result;
-        }
-
-        pub inline fn selfMul(self: *Self, other: anytype) void {
-            self.* = self.mul(other);
         }
 
         pub fn add(self: Self, other: Self) Self {
@@ -108,9 +119,17 @@ pub fn Mat(comptime T: type, comptime cols_: usize, comptime rows_: usize) type 
             return result;
         }
 
-        //pub inline fn self_add(self: *Self, other: Self) void {
-        //    self.* = self.add(other);
-        //}
+        pub fn extract(self: Self, comptime sub_col: usize, comptime sub_row: usize) Mat(T, sub_col, sub_row) {
+            if (sub_col > cols or sub_row > rows) @compileError("sub matrix dimensions must be less than or equal to matrix dimensions");
+            var result: Mat(T, sub_col, sub_row) = .from_column_major(undefined);
+            for (0..sub_col) |c| {
+                for (0..sub_row) |r| {
+                    result.items[c][r] = self.items[c][r];
+                }
+            }
+            return result;
+        }
+
 
         pub fn sub(self: Self, other: Self) Self {
             var result: Self = .{ .items = undefined };
@@ -121,10 +140,6 @@ pub fn Mat(comptime T: type, comptime cols_: usize, comptime rows_: usize) type 
             }
             return result;
         }
-
-        //pub inline fn self_sub(self: *Self, other: Self) void {
-        //    self.* = self.sub(other);
-        //}
 
         /// create a perspective projection matrix
         pub fn perspective(fovy: T, aspect: T, near: T, far: T) Self {
@@ -198,10 +213,6 @@ pub fn Mat(comptime T: type, comptime cols_: usize, comptime rows_: usize) type 
             return result;
         }
 
-        //pub inline fn self_scale(self: *Self, vector: @Vector(rows - 1, T)) void {
-        //    self.* = self.scale(vector);
-        //}
-
         pub fn rotate(self: Self, angle: T, axis: @Vector(rows, T)) Self {
             if (rows != cols) @compileError("Transform matrix must be square");
             if (rows != 4 or cols != 4) @compileError("unsuported dimensions, only suports 4x4");
@@ -222,10 +233,6 @@ pub fn Mat(comptime T: type, comptime cols_: usize, comptime rows_: usize) type 
 
             return self.mul(rot);
         }
-
-        //pub inline fn self_rotate(self: *Self, angle: T, axis: @Vector(3, T)) void {
-        //    self.* = self.rotate(angle, axis);
-        //}
 
         pub const identity = blk: {
             if (rows != cols) @compileError("Identity matrix must be square");
