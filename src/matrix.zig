@@ -1,6 +1,3 @@
-const std = @import("std");
-const vec = @import("./root.zig").vec;
-
 /// column major generic matrix type
 pub fn Mat(comptime T: type, comptime cols_: usize, comptime rows_: usize) type {
     return extern struct {
@@ -8,26 +5,33 @@ pub fn Mat(comptime T: type, comptime cols_: usize, comptime rows_: usize) type 
 
         items: [cols][rows]T,
 
-        // comptime rows: comptime_int = rows, TODO: open an issue about comptime fields not being allowed on extern structs
-        // comptime cols: comptime_int = cols,
-        // comptime Type: type = T,
-
         pub const rows: comptime_int = rows_;
         pub const cols: comptime_int = cols_;
         pub const Type: type = T;
 
-        pub inline fn fromCM(values: [cols][rows]T) Self {
+        pub const identity = blk: {
+            if (rows != cols) @compileError("Identity matrix must be square");
+            var result: Self = .zero;
+            for (0..cols) |i| {
+                result.items[i][i] = 1;
+            }
+            break :blk result;
+        };
+
+        pub const zero: Self = .fromColumnMajorArray(@splat(@splat(0)));
+
+        pub inline fn fromColumnMajorArray(values: [cols][rows]T) Self {
             return .{ .items = values };
         }
 
-        /// performs a transpose operation, usefull for more human readable mat literals
-        pub inline fn fromRM(values: [rows][cols]T) Self {
-            return Mat(T, rows, cols).fromCM(values).transpose();
+        /// performs a transpose operation, usefull for more human readable matrix literals
+        pub inline fn fromRowMajorArray(values: [rows][cols]T) Self {
+            return Mat(T, rows, cols).fromColumnMajorArray(values).transpose();
         }
 
         // generated code seams fast but tbd
         pub fn transpose(self: Self) Mat(T, rows, cols) {
-            var result: Mat(T, rows, cols) = .fromCM(undefined);
+            var result: Mat(T, rows, cols) = .fromColumnMajorArray(undefined);
             for (0..cols) |c| {
                 for (0..rows) |r| {
                     result.items[r][c] = self.items[c][r];
@@ -43,7 +47,7 @@ pub fn Mat(comptime T: type, comptime cols_: usize, comptime rows_: usize) type 
             for (&result_items, items) |*result_item, item| {
                 result_item.* = item * scalar;
             }
-            return .fromCM(@bitCast(result_items));
+            return .fromColumnMajorArray(@bitCast(result_items));
         }
 
         // `other` can be a scalar or a matrix with the same number of rows as the numbers of columns of `self`
@@ -195,50 +199,16 @@ pub fn Mat(comptime T: type, comptime cols_: usize, comptime rows_: usize) type 
             self.* = self.rotate(angle, axis);
         }
 
-        pub const identity = blk: {
-            if (rows != cols) @compileError("Identity matrix must be square");
-            var result: Self = .zero;
-            for (0..cols) |i| {
-                result.items[i][i] = 1;
-            }
-            break :blk result;
-        };
-
-        pub const zero: Self = .fromCM(@splat(@splat(0)));
-
-        // TODO: doc
-        pub fn format(
-            self: Self,
-            comptime fmt: []const u8,
-            options: std.fmt.FormatOptions,
-            writer: anytype,
-        ) !void {
-            const separator_indx = comptime std.mem.lastIndexOfScalar(u8, fmt, '|');
-            const scalar_fmt = if (separator_indx) |i| fmt[i + 1 ..] else fmt;
-            const grid_fmt = if (separator_indx) |i| fmt[0..i] else "g";
-
-            if (comptime std.mem.eql(u8, grid_fmt, "l")) {
+        pub fn format(self: @This(), writer: *std.io.Writer) std.io.Writer.Error!void {
+            for (0..rows) |r| {
                 try writer.writeAll("[");
-                for (0..rows) |r| {
-                    try writer.writeAll("[");
-                    for (0..cols) |c| {
-                        try std.fmt.formatType(self.items[c][r], scalar_fmt, options, writer, 0);
-                        if (c < cols - 1) try writer.writeAll(", ");
-                    }
-                    if (r < rows - 1) try writer.writeAll(", ");
-                    try writer.writeAll("]");
+                for (0..cols) |c| {
+                    try writer.print("{d}", .{self.items[c][r]});
+                    if (c < cols - 1) try writer.writeAll(", ");
                 }
-                try writer.writeAll("]");
-            } else if (comptime std.mem.eql(u8, grid_fmt, "g")) {
-                for (0..rows) |r| {
-                    try writer.writeAll("[");
-                    for (0..cols) |c| {
-                        try std.fmt.formatType(self.items[c][r], scalar_fmt, options, writer, 0);
-                        if (c < cols - 1) try writer.writeAll(", ");
-                    }
-                    try writer.writeAll("]\n");
-                }
-            } else @compileError("invalid matrix fmt specificer, specificer must be `l` or `g` but is `" ++ grid_fmt ++ "`");
+                try writer.writeByte(']');
+                if (r != rows - 1) try writer.writeByte('\n');
+            }
         }
 
         pub fn eql(self: Self, other: Self) bool {
@@ -254,9 +224,20 @@ pub fn Mat(comptime T: type, comptime cols_: usize, comptime rows_: usize) type 
     };
 }
 
+test "format" {
+    const c = Mat(f32, 3, 3).identity;
+    var buff: [128]u8 = undefined;
+    const result = try std.fmt.bufPrint(&buff, "{f}", .{c});
+    try std.testing.expectEqualStrings(
+        \\[1, 0, 0]
+        \\[0, 1, 0]
+        \\[0, 0, 1]
+    , result);
+}
+
 test "translate" {
     const c = Mat(f32, 4, 4).identity.translate(.{ 1, 2, 3 });
-    const excpected_c: Mat(f32, 4, 4) = .fromRM(.{
+    const excpected_c: Mat(f32, 4, 4) = .fromRowMajorArray(.{
         .{ 1, 0, 0, 1 },
         .{ 0, 1, 0, 2 },
         .{ 0, 0, 1, 3 },
@@ -267,17 +248,17 @@ test "translate" {
 
 test "mul" {
     {
-        const a = Mat(f32, 2, 2).fromCM(.{
+        const a = Mat(f32, 2, 2).fromColumnMajorArray(.{
             .{ 1, 2 },
             .{ 3, 4 },
         });
-        const b = Mat(f32, 2, 2).fromCM(.{
+        const b = Mat(f32, 2, 2).fromColumnMajorArray(.{
             .{ 5, 6 },
             .{ 7, 8 },
         });
         const c = a.mul(b);
 
-        const excpected_c = Mat(f32, 2, 2).fromCM(.{
+        const excpected_c = Mat(f32, 2, 2).fromColumnMajorArray(.{
             .{ 23, 34 },
             .{ 31, 46 },
         });
@@ -285,18 +266,18 @@ test "mul" {
     }
 
     {
-        const a = Mat(f32, 2, 3).fromCM(.{
+        const a = Mat(f32, 2, 3).fromColumnMajorArray(.{
             .{ 1, 2, 3 },
             .{ 4, 5, 6 },
         });
-        const b = Mat(f32, 3, 2).fromCM(.{
+        const b = Mat(f32, 3, 2).fromColumnMajorArray(.{
             .{ 1, 2 },
             .{ 3, 4 },
             .{ 5, 6 },
         });
         const c = a.mul(b);
 
-        const excpected_c = Mat(f32, 3, 3).fromCM(.{
+        const excpected_c = Mat(f32, 3, 3).fromColumnMajorArray(.{
             .{ 9, 12, 15 },
             .{ 19, 26, 33 },
             .{ 29, 40, 51 },
@@ -305,13 +286,13 @@ test "mul" {
     }
 
     {
-        const a = Mat(f32, 4, 4).fromCM(.{
+        const a = Mat(f32, 4, 4).fromColumnMajorArray(.{
             .{ 1, 2, 3, 4 },
             .{ 5, 6, 7, 8 },
             .{ 9, 10, 11, 12 },
             .{ 13, 14, 15, 16 },
         });
-        const b = Mat(f32, 4, 4).fromCM(.{
+        const b = Mat(f32, 4, 4).fromColumnMajorArray(.{
             .{ 17, 18, 19, 20 },
             .{ 21, 22, 23, 24 },
             .{ 25, 26, 27, 28 },
@@ -319,7 +300,7 @@ test "mul" {
         });
         const c = a.mul(b);
 
-        const excpected_c = Mat(f32, 4, 4).fromCM(.{
+        const excpected_c = Mat(f32, 4, 4).fromColumnMajorArray(.{
             .{ 538, 612, 686, 760 },
             .{ 650, 740, 830, 920 },
             .{ 762, 868, 974, 1080 },
@@ -328,3 +309,6 @@ test "mul" {
         try std.testing.expectEqual(excpected_c, c);
     }
 }
+
+const std = @import("std");
+const vec = @import("root.zig").vec;
