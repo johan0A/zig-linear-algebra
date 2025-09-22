@@ -59,6 +59,40 @@ pub fn from_to(from: anytype, to: @TypeOf(from)) @Vector(4, info(@TypeOf(from)).
     return vector.norm(@Vector(4, info(@TypeOf(from)).child){ v[0], v[1], v[2], w });
 }
 
+pub fn get_twist(inAxis: anytype) @Vector(4, info(@TypeOf(inAxis)).child) {
+    if (info(@TypeOf(inAxis)).len != 4) @compileError("vector must have four elements for get_twist() to be defined");
+    const dir = vector.dot(vector.extract(inAxis, 3), inAxis) * inAxis;
+    const twist: @Vector(4, info(@TypeOf(inAxis)).child) = .{ dir[0], dir[1], dir[2], inAxis[3] };
+    const twist_len = vector.norm_sqr(twist);
+    if (twist_len == 0.0) {
+        return twist / @as(@Vector(4, info(@TypeOf(inAxis)).child), @splat(std.math.sqrt(twist_len)));
+    }
+    return identity(info(@TypeOf(inAxis)).child);
+}
+
+pub fn norm(q: anytype) @TypeOf(q) {
+    return vector.norm(q);
+}
+
+//pub fn to_axis_angle(q: anytype) struct {
+//    axis: @Vector(3, info(@TypeOf(q)).child),
+//    angle: info(@TypeOf(q)).child,
+//} {
+//    if (info(@TypeOf(q)).len != 4) @compileError("vector must have four elements for to_axis_angle() to be defined");
+//    const qw_clamped = std.math.clamp(q[3], -1.0, 1.0);
+//    const angle = 2.0 * std.math.acos(qw_clamped);
+//    const s = std.math.sqrt(1.0 - qw_clamped * qw_clamped);
+//    if (s < 0.001) { // If s is close to zero then direction of axis is not important
+//        return .{ .axis = .{ 1, 0, 0 }, .angle = angle };
+//    } else {
+//        return .{ .axis = .{ q[0] / s, q[1] / s, q[2] / s }, .angle = angle };
+//    }
+//}
+
+pub fn conjugate(q: anytype) @TypeOf(q) {
+    if (info(@TypeOf(q)).len != 4) @compileError("vector must have four elements for conjugate() to be defined");
+    return q * @Vector(4, info(@TypeOf(q)).child){ -1, -1, -1, 1 };
+}
 
 pub fn from_eular_angles(inAngles: anytype) @Vector(4, info(@TypeOf(inAngles)).child) {
     if (info(@TypeOf(inAngles)).len != 3) @compileError("vector must have three elements for from_eular_angles() to be defined");
@@ -77,17 +111,6 @@ pub fn from_eular_angles(inAngles: anytype) @Vector(4, info(@TypeOf(inAngles)).c
               cz * cx * sy + sz * sx * cy, 
               sz * cx * cy - cz * sx * sy, 
               cz * cx * cy + sz * sx * sy };
-}
-
-pub fn get_twist(inAxis: anytype) @Vector(4, info(@TypeOf(inAxis)).child) {
-    if (info(@TypeOf(inAxis)).len != 4) @compileError("vector must have four elements for get_twist() to be defined");
-    const dir = vector.dot(vector.extract(inAxis, 3), inAxis) * inAxis;
-    const twist: @Vector(4, info(@TypeOf(inAxis)).child) = .{ dir[0], dir[1], dir[2], inAxis[3] };
-    const twist_len = vector.norm_sqr(twist);
-    if (twist_len == 0.0) {
-        return twist / @as(@Vector(4, info(@TypeOf(inAxis)).child), @splat(std.math.sqrt(twist_len)));
-    }
-    return identity(info(@TypeOf(inAxis)).child);
 }
 
 pub fn to_eular_angles(q: anytype) @Vector(3, info(@TypeOf(q)).child) {
@@ -112,3 +135,4 @@ pub fn to_eular_angles(q: anytype) @Vector(3, info(@TypeOf(q)).child) {
 
     return .{ roll, pitch, yaw };
 }
+
