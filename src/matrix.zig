@@ -50,7 +50,7 @@ pub fn Mat(comptime T: type, comptime cols_: usize, comptime rows_: usize) type 
             return .fromColumnMajorArray(@bitCast(result_items));
         }
 
-        // `other` can be a scalar or a matrix with the same number of rows as the numbers of columns of `self`
+        // `other` must be a matrix with the same number of rows as the numbers of columns of `self`
         pub fn mul(self: Self, other: anytype) Mat(T, @TypeOf(other).cols, Self.rows) {
             if (Self.cols != @TypeOf(other).rows) @compileError("number of columns of self must be equal to number of rows of other");
             if (Self.Type != @TypeOf(other).Type) @compileError("type of self must be equal to Type of other");
@@ -164,9 +164,8 @@ pub fn Mat(comptime T: type, comptime cols_: usize, comptime rows_: usize) type 
 
             var result = self;
             for (0..rows - 1) |i| {
-                result.items[i][0 .. cols - 1].* = self.items[i][0 .. cols - 1].* * factors;
+                result.items[i][0 .. rows - 1].* = self.items[i][0 .. rows - 1].* * @as(@Vector(rows - 1, T), @splat(factors[i]));
             }
-
             return result;
         }
 
@@ -174,7 +173,7 @@ pub fn Mat(comptime T: type, comptime cols_: usize, comptime rows_: usize) type 
             self.* = self.scale(vector);
         }
 
-        pub fn rotate(self: Self, angle: T, axis: @Vector(rows, T)) Self {
+        pub fn rotate(self: Self, angle: T, axis: @Vector(3, T)) Self {
             if (rows != cols) @compileError("Transform matrix must be square");
             if (rows != 4 or cols != 4) @compileError("unsuported dimensions, only suports 4x4");
 
@@ -200,9 +199,22 @@ pub fn Mat(comptime T: type, comptime cols_: usize, comptime rows_: usize) type 
         }
 
         pub fn format(self: @This(), writer: *std.io.Writer) std.io.Writer.Error!void {
+            var max_widths: [cols]usize = [_]usize{0} ** cols;
+
+            for (0..cols) |c| {
+                for (0..rows) |r| {
+                    const len = std.fmt.count("{d}", .{self.items[c][r]});
+                    max_widths[c] = @max(max_widths[c], len);
+                }
+            }
+
             for (0..rows) |r| {
                 try writer.writeAll("[");
                 for (0..cols) |c| {
+                    const len = std.fmt.count("{d}", .{self.items[c][r]});
+                    for (0..max_widths[c] - len) |_| {
+                        try writer.writeByte(' ');
+                    }
                     try writer.print("{d}", .{self.items[c][r]});
                     if (c < cols - 1) try writer.writeAll(", ");
                 }
@@ -225,18 +237,22 @@ pub fn Mat(comptime T: type, comptime cols_: usize, comptime rows_: usize) type 
 }
 
 test "format" {
-    const c = Mat(f32, 3, 3).identity;
+    const c: Mat(f32, 3, 3) = .fromRowMajorArray(.{
+        .{ 9, 12, 15 },
+        .{ 19, 26, 33 },
+        .{ 29, 40, 51 },
+    });
     var buff: [128]u8 = undefined;
     const result = try std.fmt.bufPrint(&buff, "{f}", .{c});
     try std.testing.expectEqualStrings(
-        \\[1, 0, 0]
-        \\[0, 1, 0]
-        \\[0, 0, 1]
+        \\[ 9, 12, 15]
+        \\[19, 26, 33]
+        \\[29, 40, 51]
     , result);
 }
 
 test "translate" {
-    const c = Mat(f32, 4, 4).identity.translate(.{ 1, 2, 3 });
+    const c: Mat(f32, 4, 4) = .translate(.identity, .{ 1, 2, 3 });
     const excpected_c: Mat(f32, 4, 4) = .fromRowMajorArray(.{
         .{ 1, 0, 0, 1 },
         .{ 0, 1, 0, 2 },
@@ -248,65 +264,107 @@ test "translate" {
 
 test "mul" {
     {
-        const a = Mat(f32, 2, 2).fromColumnMajorArray(.{
-            .{ 1, 2 },
-            .{ 3, 4 },
+        const a: Mat(f32, 2, 2) = .fromRowMajorArray(.{
+            .{ 1, 3 },
+            .{ 2, 4 },
         });
-        const b = Mat(f32, 2, 2).fromColumnMajorArray(.{
-            .{ 5, 6 },
-            .{ 7, 8 },
+        const b: Mat(f32, 2, 2) = .fromRowMajorArray(.{
+            .{ 5, 7 },
+            .{ 6, 8 },
         });
         const c = a.mul(b);
 
-        const excpected_c = Mat(f32, 2, 2).fromColumnMajorArray(.{
-            .{ 23, 34 },
-            .{ 31, 46 },
+        const excpected_c: Mat(f32, 2, 2) = .fromRowMajorArray(.{
+            .{ 23, 31 },
+            .{ 34, 46 },
         });
         try std.testing.expectEqual(excpected_c, c);
     }
 
     {
-        const a = Mat(f32, 2, 3).fromColumnMajorArray(.{
-            .{ 1, 2, 3 },
-            .{ 4, 5, 6 },
+        const a: Mat(f32, 2, 3) = .fromRowMajorArray(.{
+            .{ 1, 4 },
+            .{ 2, 5 },
+            .{ 3, 6 },
         });
-        const b = Mat(f32, 3, 2).fromColumnMajorArray(.{
-            .{ 1, 2 },
-            .{ 3, 4 },
-            .{ 5, 6 },
+        const b: Mat(f32, 3, 2) = .fromRowMajorArray(.{
+            .{ 1, 3, 5 },
+            .{ 2, 4, 6 },
         });
         const c = a.mul(b);
 
-        const excpected_c = Mat(f32, 3, 3).fromColumnMajorArray(.{
-            .{ 9, 12, 15 },
-            .{ 19, 26, 33 },
-            .{ 29, 40, 51 },
+        const excpected_c: Mat(f32, 3, 3) = .fromRowMajorArray(.{
+            .{ 9, 19, 29 },
+            .{ 12, 26, 40 },
+            .{ 15, 33, 51 },
         });
         try std.testing.expectEqual(excpected_c, c);
     }
 
     {
-        const a = Mat(f32, 4, 4).fromColumnMajorArray(.{
-            .{ 1, 2, 3, 4 },
-            .{ 5, 6, 7, 8 },
-            .{ 9, 10, 11, 12 },
-            .{ 13, 14, 15, 16 },
+        const a: Mat(f32, 4, 4) = .fromRowMajorArray(.{
+            .{ 1, 5, 9, 13 },
+            .{ 2, 6, 10, 14 },
+            .{ 3, 7, 11, 15 },
+            .{ 4, 8, 12, 16 },
         });
-        const b = Mat(f32, 4, 4).fromColumnMajorArray(.{
-            .{ 17, 18, 19, 20 },
-            .{ 21, 22, 23, 24 },
-            .{ 25, 26, 27, 28 },
-            .{ 29, 30, 31, 32 },
+        const b: Mat(f32, 4, 4) = .fromRowMajorArray(.{
+            .{ 17, 21, 25, 29 },
+            .{ 18, 22, 26, 30 },
+            .{ 19, 23, 27, 31 },
+            .{ 20, 24, 28, 32 },
         });
         const c = a.mul(b);
 
-        const excpected_c = Mat(f32, 4, 4).fromColumnMajorArray(.{
-            .{ 538, 612, 686, 760 },
-            .{ 650, 740, 830, 920 },
-            .{ 762, 868, 974, 1080 },
-            .{ 874, 996, 1118, 1240 },
+        const excpected_c: Mat(f32, 4, 4) = .fromRowMajorArray(.{
+            .{ 538, 650, 762, 874 },
+            .{ 612, 740, 868, 996 },
+            .{ 686, 830, 974, 1118 },
+            .{ 760, 920, 1080, 1240 },
         });
         try std.testing.expectEqual(excpected_c, c);
+    }
+}
+
+test "scale" {
+    {
+        const mat: Mat(f32, 4, 4) = .fromRowMajorArray(.{
+            .{ 1, 0, 0, 5 },
+            .{ 0, 1, 0, 6 },
+            .{ 0, 0, 1, 7 },
+            .{ 0, 0, 0, 1 },
+        });
+        const scaled = mat.scale(.{ 2, 3, 4 });
+
+        const expected: Mat(f32, 4, 4) = .fromRowMajorArray(.{
+            .{ 2, 0, 0, 5 },
+            .{ 0, 3, 0, 6 },
+            .{ 0, 0, 4, 7 },
+            .{ 0, 0, 0, 1 },
+        });
+        try std.testing.expectEqual(expected, scaled);
+    }
+
+    {
+        const mat: Mat(f32, 3, 3) = .fromRowMajorArray(.{
+            .{ 0.707, -0.707, 0 },
+            .{ 0.707, 0.707, 0 },
+            .{ 0, 0, 1 },
+        });
+
+        const scaled = mat.scale(.{ 2, 3 });
+
+        const expected: Mat(f32, 3, 3) = .fromRowMajorArray(.{
+            .{ 1.414, -2.121, 0 },
+            .{ 1.414, 2.121, 0 },
+            .{ 0, 0, 1 },
+        });
+
+        for (0..3) |c| {
+            for (0..3) |r| {
+                try std.testing.expectApproxEqAbs(expected.items[c][r], scaled.items[c][r], 0.001);
+            }
+        }
     }
 }
 
