@@ -340,6 +340,10 @@ pub fn is_close(a: anytype, b: @TypeOf(a), max_distance_sqr: Float(@bitSizeOf(st
     return norm_sqr(inner_a - inner_b) <= max_distance_sqr;
 }
 
+pub fn is_normalized_default(a: anytype) bool {
+    return is_normalized(a, 1.0e-6);
+}
+
 pub fn is_normalized(a: anytype, tolerance: Float(@bitSizeOf(std.meta.Child(@TypeOf(a))))) bool {
     return norm_sqr(a - 1.0) <= tolerance;
 }

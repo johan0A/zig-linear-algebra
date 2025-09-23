@@ -35,6 +35,7 @@ pub fn build(b: *std.Build) void {
                 },
             }),
         });
+        b.installArtifact(bench);
         const bench_step = b.step("bench", "run benchmark");
         const bench_cmd = b.addRunArtifact(bench);
         bench_step.dependOn(&bench_cmd.step);

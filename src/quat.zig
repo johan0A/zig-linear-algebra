@@ -114,15 +114,22 @@ pub fn from_eular_angles(inAngles: anytype) @Vector(4, std.meta.Child(@TypeOf(in
     const cz = res.cos_out[2];
     const sz = res.sin_out[2];
 
-    return .{ cz * sx * cy - sz * cx * sy, cz * cx * sy + sz * sx * cy, sz * cx * cy - cz * sx * sy, cz * cx * cy + sz * sx * sy };
+    return .{ cz * sx * cy - sz * cx * sy, 
+              cz * cx * sy + sz * sx * cy, 
+              sz * cx * cy - cz * sx * sy, 
+              cz * cx * cy + sz * sx * sy };
 }
 
-//pub fn from_rotation_angle(axis: anytype, angle: std.meta.Child(@TypeOf(axis))) @Vector(4, std.meta.Child(@TypeOf(axis))) {
-//    //if (meta.array_vector_length(@TypeOf(axis)) != 3) @compileError("vector must have three elements for from_rotation_angle() to be defined");
-//    //const half_angle = angle * 0.5;
-//    //const norm_axis = vector.normalize(axis);
-//    //return .{ norm_axis[0] * s, norm_axis[1] * s, norm_axis[2] * s, c };
-//}
+pub fn from_rotation_angle(axis: anytype, angle: std.meta.Child(@TypeOf(axis))) @Vector(4, std.meta.Child(@TypeOf(axis))) {
+    const in_axis = map_to_vector(axis); 
+    if (meta.array_vector_length(@TypeOf(axis)) != 3) @compileError("vector must have three elements for from_rotation_angle() to be defined");
+    std.debug.assert(vector.is_normalized_default(in_axis));
+    return .{ 
+        in_axis[0] * std.math.sin(angle * 0.5), 
+        in_axis[1] * std.math.sin(angle * 0.5), 
+        in_axis[2] * std.math.sin(angle * 0.5), 
+        std.math.cos(angle * 0.5) };
+}
 
 
 pub fn to_eular_angles(q: anytype) @Vector(3, std.meta.Child(@TypeOf(q))) {
