@@ -5,18 +5,20 @@ pub const AABB = @import("aabb.zig").AABB;
 pub const Plane = @import("plane.zig").Plane;
 
 pub fn get_vector_from_buffer(comptime T: type, vertex_index: usize, buffer: []align(4) const u8, byte_offset: usize, byte_stride: usize) T {
-    const info = vec.info(T);
-    var arr: [info.len]info.child = undefined;
-    const element_size = @sizeOf(info.child);
+    const vector_len = switch(@typeInfo(T)) {
+        .vector => |v| v.len,
+        .array => |array| array.len,
+        else => @compileError("Expected a vector type got: " ++ @typeName(T)),
+    }; 
+    var arr: [vector_len]std.meta.Child(T) = undefined;
+    const element_size = @sizeOf(std.meta.Child(T));
     
     // Copy bytes and cast to the correct type
-    const total_bytes = info.len * element_size;
+    const total_bytes = vector_len * element_size;
     const begin = byte_offset + vertex_index * byte_stride;
     const byte_slice = buffer[begin..begin + total_bytes];
     @memcpy(std.mem.asBytes(&arr), byte_slice);
-    
-    const res: T = arr;
-    return res;
+    return arr;
 }
 
 test {

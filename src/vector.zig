@@ -1,14 +1,12 @@
 // Jolt Physics Library (https://github.com/jrouwe/JoltPhysics)
 // SPDX-FileCopyrightText: 2021 Jorrit Rouwe
 // SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: 2025 Michael Pollind 
-
-
-
+// SPDX-FileCopyrightText: 2025 Michael Pollind
 const std = @import("std");
-const Mat = @import("matrix.zig").Mat;
+const meta = @import("meta.zig");
 const testing = @import("testing.zig");
 
+const Mat = @import("matrix.zig").Mat;
 const Float = std.meta.Float;
 
 pub const Vec4f32 = @Vector(4, f32);
@@ -19,22 +17,23 @@ pub const Vec4f64 = @Vector(4, f64);
 pub const Vec3f64 = @Vector(3, f64);
 pub const Vec2f64 = @Vector(2, f64);
 
-pub fn info(T: type) std.builtin.Type.Vector {
-    if (@typeInfo(T) != .vector) @compileError("Expected a @Vector type got: " ++ @typeName(T));
-    return @typeInfo(T).vector;
+fn map_to_vector(vec: anytype) @Vector(meta.array_vector_length(@TypeOf(vec)), std.meta.Child(@TypeOf(vec))) {
+    const type_info = @typeInfo(@TypeOf(vec));
+    if (type_info != .vector and type_info != .array) @compileError("Expected vector or array type, got: " ++ @typeName(@TypeOf(vec)));
+    return vec;
 }
 
-pub fn to_mat(vec: anytype) Mat(info(@TypeOf(vec)).child, 1, info(@TypeOf(vec)).len) {
-    var result: Mat(info(@TypeOf(vec)).child, 1, info(@TypeOf(vec)).len) = .zero;
-    inline for (0..info(@TypeOf(vec)).len) |i| {
+pub fn to_mat(vec: anytype) Mat(std.meta.Child(@TypeOf(vec)), 1, meta.array_vector_length(@TypeOf(vec))) {
+    var result: Mat(std.meta.Child(@TypeOf(vec)), 1, meta.array_vector_length(@TypeOf(vec))) = .zero;
+    inline for (0..meta.array_vector_length(@TypeOf(vec))) |i| {
         result.items[0][i] = vec[i];
     }
     return result;
 }
 
-pub fn extract(vec: anytype, comptime len: usize) @Vector(len, info(@TypeOf(vec)).child) {
-    if (len > info(@TypeOf(vec)).len) @compileError("extract: length out of bounds");
-    var result: @Vector(len, info(@TypeOf(vec)).child) = undefined;
+pub fn extract(vec: anytype, comptime len: usize) @Vector(len, std.meta.Child(@TypeOf(vec))) {
+    if (len > meta.array_vector_length(@TypeOf(vec))) @compileError("extract: length out of bounds");
+    var result: @Vector(len, std.meta.Child(@TypeOf(vec))) = undefined;
     inline for (0..len) |i| {
         result[i] = vec[i];
     }
@@ -56,8 +55,7 @@ pub fn extract(vec: anytype, comptime len: usize) @Vector(len, info(@TypeOf(vec)
 /// const v2 = v.sw("wxx");
 /// ```
 /// here v2 is equal to `Vec(3, f32).init(.{ 4, 1, 1 });`
-pub fn swizzle(vec: anytype, comptime components: []const u8) @Vector(components.len, info(@TypeOf(vec)).child) {
-    const T = info(@TypeOf(vec)).child;
+pub fn swizzle(vec: anytype, comptime components: []const u8) @Vector(components.len, std.meta.Child(@TypeOf(vec))) {
     comptime var mask: [components.len]u8 = undefined;
     comptime var i: usize = 0;
     inline for (components) |c| {
@@ -72,16 +70,15 @@ pub fn swizzle(vec: anytype, comptime components: []const u8) @Vector(components
     }
 
     return @shuffle(
-        T,
+        std.meta.Child(@TypeOf(vec)),
         vec,
-        @as(@Vector(1, T), undefined),
+        @as(@Vector(1, std.meta.Child(@TypeOf(vec))), undefined),
         mask,
     );
 }
 
 pub fn norm_sqr_adv(vec: anytype, comptime precision: u8) Float(precision) {
-    const T = info(@TypeOf(vec)).child;
-
+    const T = std.meta.Child(vec);
     if (@typeInfo(T) == .int) {
         return @as(
             Float(precision),
@@ -93,7 +90,7 @@ pub fn norm_sqr_adv(vec: anytype, comptime precision: u8) Float(precision) {
     } else {
         const items: blk: {
             if (precision > @bitSizeOf(T)) {
-                break :blk @Vector(info(@TypeOf(vec)).len, Float(precision));
+                break :blk @Vector(meta.array_vector_length(@TypeOf(vec)), Float(precision));
             } else {
                 break :blk @TypeOf(vec);
             }
@@ -106,8 +103,8 @@ pub fn norm_sqr_adv(vec: anytype, comptime precision: u8) Float(precision) {
     }
 }
 
-pub inline fn norm_sqr(vec: anytype) Float(@bitSizeOf(info(@TypeOf(vec)).child)) {
-    return norm_sqr_adv(vec, @bitSizeOf(info(@TypeOf(vec)).child));
+pub inline fn norm_sqr(vec: anytype) Float(@bitSizeOf(std.meta.Child(@TypeOf(vec)))) {
+    return norm_sqr_adv(vec, @bitSizeOf(std.meta.Child(@TypeOf(vec))));
 }
 
 /// Returns the norm of the vector as a Float.
@@ -115,7 +112,8 @@ pub inline fn norm_sqr(vec: anytype) Float(@bitSizeOf(info(@TypeOf(vec)).child))
 /// the precsion parameter is the number of bits of the output.
 /// the precision of the calculations will match the precision of the output type.
 pub fn norm_adv(vec: anytype, comptime precision: u8) Float(precision) {
-    const T = info(@TypeOf(vec)).child;
+    const inner_vec = map_to_vector(vec);
+    const T = std.meta.Child(@TypeOf(vec));
 
     if (@typeInfo(T) == .int) {
         return std.math.sqrt(
@@ -123,18 +121,18 @@ pub fn norm_adv(vec: anytype, comptime precision: u8) Float(precision) {
                 Float(precision),
                 @floatFromInt(@reduce(
                     .Add,
-                    vec * vec,
+                    inner_vec * inner_vec,
                 )),
             ),
         );
     } else {
         const items: blk: {
             if (precision > @bitSizeOf(T)) {
-                break :blk @Vector(info(@TypeOf(vec)).len, Float(precision));
+                break :blk @Vector(meta.array_vector_length(@TypeOf(inner_vec)), Float(precision));
             } else {
-                break :blk @TypeOf(vec);
+                break :blk @TypeOf(inner_vec);
             }
-        } = vec;
+        } = inner_vec;
 
         return @floatCast(std.math.sqrt(
             @reduce(
@@ -148,30 +146,33 @@ pub fn norm_adv(vec: anytype, comptime precision: u8) Float(precision) {
 /// Returns the norm of the vector as a Float with the default precision.
 /// the precision of the output is the number of bits of the output.
 /// see `normAdv` for more information.
-pub inline fn norm(vec: anytype) Float(@bitSizeOf(info(@TypeOf(vec)).child)) {
-    return norm_adv(vec, @bitSizeOf(info(@TypeOf(vec)).child));
+pub inline fn norm(vec: anytype) Float(@bitSizeOf(std.meta.Child(@TypeOf(vec)))) {
+    return norm_adv(vec, @bitSizeOf(std.meta.Child(@TypeOf(vec))));
 }
 
 /// Returns a new vector with the same direction as the original vector, but with a norm closest to 1.
 pub fn normalize(vec: anytype) @TypeOf(vec) {
-    const self_norm = switch (@typeInfo(info(@TypeOf(vec)).child)) {
-        .float => norm(vec),
-        .int => @as(info(@TypeOf(vec)).child, @intFromFloat(norm(vec))),
+    const inner_vec = map_to_vector(vec);
+    const self_norm = switch (@typeInfo(std.meta.Child(@TypeOf(inner_vec)))) {
+        .float => norm(inner_vec),
+        .int => @as(std.meta.Child(@TypeOf(inner_vec)), @intFromFloat(norm(inner_vec))),
         else => unreachable,
     };
-    return vec / @as(
-        @TypeOf(vec),
+    return inner_vec / @as(
+        @TypeOf(inner_vec),
         @splat(self_norm),
     );
 }
 
 /// dot product of two vectors.
-pub fn dot(vec: anytype, other: @TypeOf(vec)) info(@TypeOf(vec)).child {
-    return @reduce(.Add, vec * other);
+pub fn dot(vec: anytype, other: @TypeOf(vec)) std.meta.Child(@TypeOf(vec)) {
+    const inner_vec = map_to_vector(vec);
+    const inner_other: @TypeOf(inner_vec) = other;
+    return @reduce(.Add, inner_vec * inner_other);
 }
 
 pub fn norm_perpendicular(self: anytype) @TypeOf(self) {
-    if (info(@TypeOf(self)).len != 3) @compileError("vector must have three elements for normalized_perpendicular() to be defined");
+    if (meta.array_vector_length(@TypeOf(self)) != 3) @compileError("vector must have three elements for normalized_perpendicular() to be defined");
     if (@abs(self[0]) > @abs(self[1])) {
         const len = norm(swizzle(self, "xz"));
         return .{ self[2], 0.0, -self[0] } / @as(@TypeOf(self), @splat(len));
@@ -182,13 +183,16 @@ pub fn norm_perpendicular(self: anytype) @TypeOf(self) {
 }
 
 /// Returns the cross product of two vectors.
-pub fn cross(self: anytype, other: @TypeOf(self)) @TypeOf(self) {
-    if (info(@TypeOf(self)).len != 3) @compileError("vector must have three elements for cross() to be defined");
-    const T = info(@TypeOf(self)).child;
-    const self1 = @shuffle(T, self, self, [3]u8{ 1, 2, 0 });
-    const self2 = @shuffle(T, self, self, [3]u8{ 2, 0, 1 });
-    const other1 = @shuffle(T, other, other, [3]u8{ 1, 2, 0 });
-    const other2 = @shuffle(T, other, other, [3]u8{ 2, 0, 1 });
+pub fn cross(a: anytype, b: @TypeOf(a)) @TypeOf(a) {
+    if (meta.array_vector_length(@TypeOf(a)) != 3) @compileError("vector must have three elements for cross() to be defined");
+    const map_a = map_to_vector(a);
+    const map_b: @TypeOf(map_a) = b;
+
+    const T = std.meta.Child(@TypeOf(map_a));
+    const self1 = @shuffle(T, map_a, map_a, [3]u8{ 1, 2, 0 });
+    const self2 = @shuffle(T, map_a, map_a, [3]u8{ 2, 0, 1 });
+    const other1 = @shuffle(T, map_b, map_b, [3]u8{ 1, 2, 0 });
+    const other2 = @shuffle(T, map_b, map_b, [3]u8{ 2, 0, 1 });
 
     return self1 * other2 - self2 * other1;
 }
@@ -197,16 +201,18 @@ pub fn cross(self: anytype, other: @TypeOf(self)) @TypeOf(self) {
 ///
 /// the precsion parameter is the number of bits of the Vector type T.
 /// the precision of the calculations will match the precision of the output type.
-pub fn distance_adv(vec: anytype, other: @TypeOf(vec), comptime precision: u8) Float(precision) {
-    return norm_adv(vec - other, precision);
+pub fn distance_adv(a: anytype, b: @TypeOf(a), comptime precision: u8) Float(precision) {
+    const inner_a = map_to_vector(a);
+    const inner_b: @TypeOf(inner_a) = b;
+    return norm_adv(inner_a - inner_b, precision);
 }
 
 /// Returns the distance between two vectors.
 ///
 /// the precision of the output is the number of bits of T.
 /// see `distanceAdv` for more information.
-pub inline fn distance(vec: anytype, other: @TypeOf(vec)) Float(@bitSizeOf(info(@TypeOf(vec)).child)) {
-    return distance_adv(vec, other, @bitSizeOf(info(@TypeOf(vec)).child));
+pub inline fn distance(vec: anytype, other: @TypeOf(vec)) Float(@bitSizeOf(std.meta.Child(@TypeOf(vec)))) {
+    return distance_adv(vec, other, @bitSizeOf(std.meta.Child(@TypeOf(vec))));
 }
 
 /// Returns the angle between two vectors.
@@ -218,8 +224,8 @@ pub fn angle_adv(vec: anytype, other: @TypeOf(vec), comptime precision: u8) Floa
 }
 
 /// Returns the angle between two vectors.
-pub inline fn angle(vec: anytype, other: @TypeOf(vec)) info(@TypeOf(vec)).child {
-    return angle_adv(vec, other, @bitSizeOf(info(@TypeOf(vec)).child));
+pub inline fn angle(a: anytype, b: @TypeOf(a)) std.meta.Child(@TypeOf(a)) {
+    return angle_adv(map_to_vector(a), map_to_vector(b), @bitSizeOf(std.meta.Child(@TypeOf(a))));
 }
 
 /// Returns a new vector that is the reflection of the original vector on the given normal.
@@ -230,19 +236,18 @@ pub fn reflect(vec: anytype, normal: @TypeOf(vec)) @TypeOf(vec) {
         @as(@TypeOf(normal), @splat(dot_product)));
 }
 
-pub fn sin_cos(vec: anytype) struct { sin_out: @TypeOf(vec), cos_out: @TypeOf(vec) } {
-    if (info(@TypeOf(vec)).len != 4) @compileError("vector must have four elements for sin_cos() to be defined");
-
-    const FVec = @TypeOf(vec);
-    const UVec = switch (@typeInfo(info(@TypeOf(vec)).child)) {
+pub fn sin_cos(input: anytype) struct { sin_out: @TypeOf(input), cos_out: @TypeOf(input) } {
+    const input_vec = map_to_vector(input);
+    const FVec = @TypeOf(input_vec);
+    const UVec = @Vector(meta.array_vector_length(@TypeOf(input_vec)), switch(@typeInfo(std.meta.Child(@TypeOf(input_vec)))) {
         .float => |v| switch (v.bits) {
-            32 => @Vector(4, u32),
-            64 => @Vector(4, u64),
+            32 => u32,
+            64 => u64,
             else => @compileError("Unsupported float size"),
         },
         else => @compileError("sin_cos only supports floating point vectors"),
-    };
-    const last_bit = switch (@typeInfo(info(@TypeOf(vec)).child)) {
+    });
+    const last_bit = switch (@typeInfo(std.meta.Child(@TypeOf(input_vec)))) {
         .float => |v| switch (v.bits) {
             32 => 0x80000000,
             64 => 0x8000000000000000,
@@ -250,23 +255,22 @@ pub fn sin_cos(vec: anytype) struct { sin_out: @TypeOf(vec), cos_out: @TypeOf(ve
         },
         else => @compileError("sin_cos only supports floating point vectors"),
     };
-    
+
     // Apply sign changes based on quadrant
-    const num_bits = switch (@typeInfo(info(@TypeOf(vec)).child)) {
+    const num_bits = switch (@typeInfo(std.meta.Child(@TypeOf(input_vec)))) {
         .float => |v| v.bits,
         else => @compileError("sin_cos only supports floating point vectors"),
     };
-
 
     // Implementation based on sinf.c from the cephes library, combines sinf and cosf in a single function, changes octants to quadrants and vectorizes it
     // Original implementation by Stephen L. Moshier (See: http://www.moshier.net/)
 
     // Make argument positive and remember sign for sin only since cos is symmetric around x (highest bit of a float is the sign bit)
-    var sin_sign = @as(UVec, @bitCast(vec)) & @as(UVec, @splat(last_bit));
-    var x: FVec = @bitCast(@as(UVec, @bitCast(vec)) ^ sin_sign);
+    var sin_sign = @as(UVec, @bitCast(input_vec)) & @as(UVec, @splat(last_bit));
+    var x: FVec = @bitCast(@as(UVec, @bitCast(input_vec)) ^ sin_sign);
 
     // x / (PI / 2) rounded to nearest int gives us the quadrant closest to x
-    const quadrant: UVec =  @intFromFloat(@as(FVec, @splat(0.6366197723675814)) * x + @as(FVec, @splat(0.5)));
+    const quadrant: UVec = @intFromFloat(@as(FVec, @splat(0.6366197723675814)) * x + @as(FVec, @splat(0.5)));
     const float_quadrant: FVec = @floatFromInt(quadrant);
 
     // Make x relative to the closest quadrant.
@@ -286,7 +290,7 @@ pub fn sin_cos(vec: anytype) struct { sin_out: @TypeOf(vec), cos_out: @TypeOf(ve
 
     // Taylor expansion:
     // Cos(x) = 1 - x^2/2! + x^4/4! - x^6/6! + x^8/8! + ... = (((x2/8!- 1/6!) * x2 + 1/4!) * x2 - 1/2!) * x2 + 1
-    const taylor_cos = (( @as(FVec, @splat(2.443315711809948e-5)) * x2 - @as(FVec, @splat(1.388731625493765e-3))) * x2 + @as(FVec, @splat(4.166664568298827e-2))) * x2 * x2 - @as(FVec, @splat(0.5)) * x2 + @as(FVec, @splat(1.0));
+    const taylor_cos = ((@as(FVec, @splat(2.443315711809948e-5)) * x2 - @as(FVec, @splat(1.388731625493765e-3))) * x2 + @as(FVec, @splat(4.166664568298827e-2))) * x2 * x2 - @as(FVec, @splat(0.5)) * x2 + @as(FVec, @splat(1.0));
     // Sin(x) = x - x^3/3! + x^5/5! - x^7/7! + ... = ((-x2/7! + 1/5!) * x2 - 1/3!) * x2 * x + x
     const taylor_sin = ((@as(FVec, @splat(-1.9515295891e-4)) * x2 + @as(FVec, @splat(8.3321608736e-3))) * x2 - @as(FVec, @splat(1.6666654611e-1))) * x2 * x + x;
 
@@ -302,13 +306,13 @@ pub fn sin_cos(vec: anytype) struct { sin_out: @TypeOf(vec), cos_out: @TypeOf(ve
     // XXX11b   -cos(x')    sin(x')
     //
     // Extract the lowest 2 bits of quadrant to determine which Taylor expansion to use and signs
-    const bit1: UVec = quadrant << @as(UVec, @splat(num_bits - 1)); // bit 0 
+    const bit1: UVec = quadrant << @as(UVec, @splat(num_bits - 1)); // bit 0
     const bit2: UVec = (quadrant << @as(UVec, @splat(num_bits - 2))) & @as(UVec, @splat(last_bit)); // bit 1
 
     // Select which one of the results is sin and which one is cos based on bit1
-    const s = @select(info(FVec).child, bit1 > @as(UVec, @splat(0)), taylor_cos, taylor_sin);
-    const c = @select(info(FVec).child, bit1 > @as(UVec, @splat(0)), taylor_sin, taylor_cos);
-    
+    const s = @select(std.meta.Child(FVec), bit1 > @as(UVec, @splat(0)), taylor_cos, taylor_sin);
+    const c = @select(std.meta.Child(FVec), bit1 > @as(UVec, @splat(0)), taylor_sin, taylor_cos);
+
     sin_sign = sin_sign ^ bit2;
     const cos_sign = bit1 ^ bit2;
 
@@ -319,7 +323,7 @@ pub fn sin_cos(vec: anytype) struct { sin_out: @TypeOf(vec), cos_out: @TypeOf(ve
 }
 
 /// Returns a new vector with a direction closest to the original vector, but with a magnitude scaled by the given value.
-pub inline fn scale(vec: anytype, value: info(@TypeOf(vec)).child) @TypeOf(vec) {
+pub inline fn scale(vec: anytype, value: std.meta.Child(@TypeOf(vec))) @TypeOf(vec) {
     return vec * @as(@TypeOf(vec), @splat(value));
 }
 
@@ -348,13 +352,22 @@ test angle_adv {
 
 test normalize {
     // Test with floating point vector
-    const v_f32 = @Vector(3, f32){ 3, 4, 0 };
-    const normalized_f32 = normalize(v_f32);
-    try std.testing.expectApproxEqAbs(@as(f32, 0.6), normalized_f32[0], 0.0001);
-    try std.testing.expectApproxEqAbs(@as(f32, 0.8), normalized_f32[1], 0.0001);
-    try std.testing.expectApproxEqAbs(@as(f32, 0), normalized_f32[2], 0.0001);
-    try std.testing.expectApproxEqAbs(@as(f32, 1), norm(normalized_f32), 0.0001);
-
+    {
+        const v_f32: [3]f32 = .{ 3, 4, 0 };
+        const normalized_f32 = normalize(v_f32);
+        try std.testing.expectApproxEqAbs(@as(f32, 0.6), normalized_f32[0], 0.0001);
+        try std.testing.expectApproxEqAbs(@as(f32, 0.8), normalized_f32[1], 0.0001);
+        try std.testing.expectApproxEqAbs(@as(f32, 0), normalized_f32[2], 0.0001);
+        try std.testing.expectApproxEqAbs(@as(f32, 1), norm(normalized_f32), 0.0001);
+    }
+    {
+        const v_f32 = @Vector(3, f32){ 3, 4, 0 };
+        const normalized_f32 = normalize(v_f32);
+        try std.testing.expectApproxEqAbs(@as(f32, 0.6), normalized_f32[0], 0.0001);
+        try std.testing.expectApproxEqAbs(@as(f32, 0.8), normalized_f32[1], 0.0001);
+        try std.testing.expectApproxEqAbs(@as(f32, 0), normalized_f32[2], 0.0001);
+        try std.testing.expectApproxEqAbs(@as(f32, 1), norm(normalized_f32), 0.0001);
+    }
     // Test with integer vector
     const v_i32 = @Vector(2, i32){ 3, 4 };
     const normalized_i32 = normalize(v_i32);
@@ -453,19 +466,26 @@ test norm {
 }
 
 test sin_cos {
-    const input = @Vector(4, f32){ 0, std.math.pi * 0.5, std.math.pi, -0.5 * std.math.pi };
-    const res = sin_cos(input);
-    try testing.expect_is_close(res.cos_out, @Vector(4, f32){ 1, 0, -1, 0 }, 0.0001);
-    try testing.expect_is_close(res.sin_out, @Vector(4, f32){ 0, 1.0, 0, -1.0 }, 0.0001);
-    
+    {
+        const input = @Vector(2, f32){ 0, std.math.pi * 0.5};
+        const res = sin_cos(input);
+        try testing.expect_is_close(res.cos_out, @Vector(2, f32){ 1, 0 }, 0.0001);
+        try testing.expect_is_close(res.sin_out, @Vector(2, f32){ 0, 1.0 }, 0.0001);
+    }
+    {
+        const input = @Vector(4, f32){ 0, std.math.pi * 0.5, std.math.pi, -0.5 * std.math.pi };
+        const res = sin_cos(input);
+        try testing.expect_is_close(res.cos_out, @Vector(4, f32){ 1, 0, -1, 0 }, 0.0001);
+        try testing.expect_is_close(res.sin_out, @Vector(4, f32){ 0, 1.0, 0, -1.0 }, 0.0001);
+    }
     var ms: f64 = 0.0;
     var mc: f64 = 0.0;
 
     var x: f32 = -100.0 * std.math.pi;
-    while(x < 100.0 * std.math.pi) : (x += 1.0e-3) {
-        const xv = @as(Vec4f32, @splat(x)) + Vec4f32{0.0e-4, 2.5e-4, 5.0e-4, 7.5e-4};
+    while (x < 100.0 * std.math.pi) : (x += 1.0e-3) {
+        const xv = @as(Vec4f32, @splat(x)) + Vec4f32{ 0.0e-4, 2.5e-4, 5.0e-4, 7.5e-4 };
         const res2 = sin_cos(xv);
-        for(0..3) |i| {
+        for (0..3) |i| {
             const s1 = std.math.sin(xv[i]);
             const s2 = res2.sin_out[i];
             ms = @max(ms, @abs(s1 - s2));
@@ -477,5 +497,4 @@ test sin_cos {
     }
     try std.testing.expect(ms < 1.0e-7);
     try std.testing.expect(mc < 1.0e-7);
-
 }

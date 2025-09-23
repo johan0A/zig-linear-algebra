@@ -81,7 +81,7 @@ pub fn Plane(comptime T: type) type {
 
 test "transformed" {
     const transform = Mat(f32, 4, 4)
-        .rotate(.identity, 0.1 * std.math.pi, vec.normalize(@Vector(4, f32){ 1, 2, 3, 0 }))
+        .rotate(.identity, 0.1 * std.math.pi, vec.normalize(@Vector(3, f32){ 1, 2, 3 }))
         .translate(@Vector(3, f32){ 5, -7, 9 });
 
     const point = @Vector(3, f32){ 11.0, 13.0, 15.0 };
