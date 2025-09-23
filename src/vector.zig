@@ -78,13 +78,14 @@ pub fn swizzle(vec: anytype, comptime components: []const u8) @Vector(components
 }
 
 pub fn norm_sqr_adv(vec: anytype, comptime precision: u8) Float(precision) {
-    const T = std.meta.Child(vec);
+    const T = std.meta.Child(@TypeOf(vec));
+    const inner_a = map_to_vector(vec);
     if (@typeInfo(T) == .int) {
         return @as(
             Float(precision),
             @floatFromInt(@reduce(
                 .Add,
-                vec * vec,
+                inner_a * inner_a,
             )),
         );
     } else {
@@ -92,9 +93,9 @@ pub fn norm_sqr_adv(vec: anytype, comptime precision: u8) Float(precision) {
             if (precision > @bitSizeOf(T)) {
                 break :blk @Vector(meta.array_vector_length(@TypeOf(vec)), Float(precision));
             } else {
-                break :blk @TypeOf(vec);
+                break :blk @TypeOf(inner_a);
             }
-        } = vec;
+        } = inner_a;
 
         return @floatCast(@reduce(
             .Add,
@@ -171,14 +172,15 @@ pub fn dot(vec: anytype, other: @TypeOf(vec)) std.meta.Child(@TypeOf(vec)) {
     return @reduce(.Add, inner_vec * inner_other);
 }
 
-pub fn norm_perpendicular(self: anytype) @TypeOf(self) {
-    if (meta.array_vector_length(@TypeOf(self)) != 3) @compileError("vector must have three elements for normalized_perpendicular() to be defined");
-    if (@abs(self[0]) > @abs(self[1])) {
-        const len = norm(swizzle(self, "xz"));
-        return .{ self[2], 0.0, -self[0] } / @as(@TypeOf(self), @splat(len));
+pub fn norm_perpendicular(a: anytype) @TypeOf(a) {
+    if (meta.array_vector_length(@TypeOf(a)) != 3) @compileError("vector must have three elements for normalized_perpendicular() to be defined");
+    const inner_a = map_to_vector(a);
+    if (@abs(inner_a[0]) > @abs(inner_a[1])) {
+        const len = norm(swizzle(inner_a, "xz"));
+        return @TypeOf(inner_a){ inner_a[2], 0.0, -inner_a[0] } / @as(@TypeOf(a), @splat(len));
     } else {
-        const len = norm(swizzle(self, "yz"));
-        return .{ 0.0, self[2], -self[1] } / @as(@TypeOf(self), @splat(len));
+        const len = norm(swizzle(a, "yz"));
+        return @TypeOf(inner_a){ 0.0, inner_a[2], -inner_a[1] } / @as(@TypeOf(a), @splat(len));
     }
 }
 
@@ -239,7 +241,7 @@ pub fn reflect(vec: anytype, normal: @TypeOf(vec)) @TypeOf(vec) {
 pub fn sin_cos(input: anytype) struct { sin_out: @TypeOf(input), cos_out: @TypeOf(input) } {
     const input_vec = map_to_vector(input);
     const FVec = @TypeOf(input_vec);
-    const UVec = @Vector(meta.array_vector_length(@TypeOf(input_vec)), switch(@typeInfo(std.meta.Child(@TypeOf(input_vec)))) {
+    const UVec = @Vector(meta.array_vector_length(@TypeOf(input_vec)), switch (@typeInfo(std.meta.Child(@TypeOf(input_vec)))) {
         .float => |v| switch (v.bits) {
             32 => u32,
             64 => u64,
@@ -324,13 +326,33 @@ pub fn sin_cos(input: anytype) struct { sin_out: @TypeOf(input), cos_out: @TypeO
 
 /// Returns a new vector with a direction closest to the original vector, but with a magnitude scaled by the given value.
 pub inline fn scale(vec: anytype, value: std.meta.Child(@TypeOf(vec))) @TypeOf(vec) {
-    return vec * @as(@TypeOf(vec), @splat(value));
+    const inner_vec = map_to_vector(vec);
+    return inner_vec * @as(@TypeOf(inner_vec), @splat(value));
+}
+
+pub fn is_close_default(a: anytype, b: @TypeOf(a)) bool {
+    return is_close(a, b, 1.0e-12);
+}
+
+pub fn is_close(a: anytype, b: @TypeOf(a), max_distance_sqr: Float(@bitSizeOf(std.meta.Child(@TypeOf(a))))) bool {
+    const inner_a = map_to_vector(a);
+    const inner_b: @TypeOf(inner_a) = b;
+    return norm_sqr(inner_a - inner_b) <= max_distance_sqr;
+}
+
+pub fn is_normalized(a: anytype, tolerance: Float(@bitSizeOf(std.meta.Child(@TypeOf(a))))) bool {
+    return norm_sqr(a - 1.0) <= tolerance;
 }
 
 test scale {
     const v = @Vector(2, f32){ 1, 2 };
     try std.testing.expectEqual(@Vector(2, f32){ 2, 4 }, scale(v, 2));
     try std.testing.expectEqual(@Vector(2, f32){ 0.5, 1 }, scale(v, 0.5));
+}
+
+test is_close {
+    try std.testing.expect(is_close(@Vector(4, f32){ 1, 2, 3, 4 }, @Vector(4, f32){ 1.001, 2.001, 3.001, 4.001 }, 1.0e-4));
+    try std.testing.expect(!is_close(@Vector(4, f32){ 1, 2, 3, 4 }, @Vector(4, f32){ 1.001, 2.001, 3.001, 4.001 }, 1.0e-6));
 }
 
 test swizzle {
@@ -467,7 +489,7 @@ test norm {
 
 test sin_cos {
     {
-        const input = @Vector(2, f32){ 0, std.math.pi * 0.5};
+        const input = @Vector(2, f32){ 0, std.math.pi * 0.5 };
         const res = sin_cos(input);
         try testing.expect_is_close(res.cos_out, @Vector(2, f32){ 1, 0 }, 0.0001);
         try testing.expect_is_close(res.sin_out, @Vector(2, f32){ 0, 1.0 }, 0.0001);

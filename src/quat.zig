@@ -5,6 +5,12 @@ const meta = @import("meta.zig");
 const Quat4f32 = @Vector(4, f32);
 const Quat4f64 = @Vector(4, f64);
 
+fn map_to_vector(vec: anytype) @Vector(meta.array_vector_length(@TypeOf(vec)), std.meta.Child(@TypeOf(vec))) {
+    const type_info = @typeInfo(@TypeOf(vec));
+    if (type_info != .vector and type_info != .array) @compileError("Expected vector or array type, got: " ++ @typeName(@TypeOf(vec)));
+    return vec;
+}
+
 pub fn identity(comptime T: type) @Vector(4, T) {
     return .{ 0, 0, 0, 1 };
 }
@@ -13,11 +19,6 @@ pub fn zero(comptime T: type) @Vector(4, T) {
     return .{ 0, 0, 0, 0 };
 }
 
-fn map_to_vector(vec: anytype) @Vector(meta.array_vector_length(@TypeOf(vec)), std.meta.Child(@TypeOf(vec))) {
-    const type_info = @typeInfo(@TypeOf(vec));
-    if (type_info != .vector and type_info != .array) @compileError("Expected vector or array type, got: " ++ @typeName(@TypeOf(vec)));
-    return vec;
-}
 
 // Create quaternion that rotates a vector from the direction of inFrom to the direction of inTo along the shortest path
 // @see https://www.euclideanspace.com/maths/algebra/vectors/angleBetween/index.htm
@@ -61,11 +62,12 @@ pub fn from_to(from: anytype, to: @TypeOf(from)) @Vector(4, std.meta.Child(@Type
         }
     }
     const v = vector.cross(from, to);
-    return vector.norm(@Vector(4, std.meta.Child(@TypeOf(from))){ v[0], v[1], v[2], w });
+    return vector.normalize(@Vector(4, std.meta.Child(@TypeOf(from))){ v[0], v[1], v[2], w });
 }
 
 pub fn get_twist(inAxis: anytype) @Vector(4, std.meta.Child(@TypeOf(inAxis))) {
     if (meta.array_vector_length(@TypeOf(inAxis)) != 4) @compileError("vector must have four elements for get_twist() to be defined");
+    
     const dir = vector.dot(vector.extract(inAxis, 3), inAxis) * inAxis;
     const twist: @Vector(4, std.meta.Child(@TypeOf(inAxis))) = .{ dir[0], dir[1], dir[2], inAxis[3] };
     const twist_len = vector.norm_sqr(twist);
@@ -115,6 +117,14 @@ pub fn from_eular_angles(inAngles: anytype) @Vector(4, std.meta.Child(@TypeOf(in
     return .{ cz * sx * cy - sz * cx * sy, cz * cx * sy + sz * sx * cy, sz * cx * cy - cz * sx * sy, cz * cx * cy + sz * sx * sy };
 }
 
+//pub fn from_rotation_angle(axis: anytype, angle: std.meta.Child(@TypeOf(axis))) @Vector(4, std.meta.Child(@TypeOf(axis))) {
+//    //if (meta.array_vector_length(@TypeOf(axis)) != 3) @compileError("vector must have three elements for from_rotation_angle() to be defined");
+//    //const half_angle = angle * 0.5;
+//    //const norm_axis = vector.normalize(axis);
+//    //return .{ norm_axis[0] * s, norm_axis[1] * s, norm_axis[2] * s, c };
+//}
+
+
 pub fn to_eular_angles(q: anytype) @Vector(3, std.meta.Child(@TypeOf(q))) {
     if (meta.array_vector_length(@TypeOf(q)) != 4) @compileError("vector must have four elements for to_eular_angles() to be defined");
     
@@ -137,3 +147,8 @@ pub fn to_eular_angles(q: anytype) @Vector(3, std.meta.Child(@TypeOf(q))) {
 
     return .{ roll, pitch, yaw };
 }
+
+test from_to {
+    try std.testing.expect(vector.is_close_default(from_to(@Vector(3, f32){ 10, 0, 0 }, @Vector(3, f32){ 20, 0, 0 }), identity(f32)));
+}
+

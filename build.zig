@@ -17,10 +17,27 @@ pub fn build(b: *std.Build) void {
         const test_step = b.step("test", "Run unit tests");
         test_step.dependOn(&run_tests.step);
     }
-
+    
     {
-        const tests_check = b.addTest(.{ .name = "check", .root_module = root_module });
-        const check = b.step("check", "Check if exe and tests compile");
-        check.dependOn(&tests_check.step);
+        const zbench_module = b.dependency("zbench", .{
+            .target = target,
+            .optimize = optimize,
+        });
+        const bench = b.addExecutable(.{
+            .name = "bench",
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("src/bench.zig"),
+                .target = target,
+                .optimize = optimize,
+                .imports = &.{ 
+                    .{ .name = "zla", .module = root_module },
+                    .{ .name = "zbench", .module = zbench_module.module("zbench")}
+                },
+            }),
+        });
+        const bench_step = b.step("bench", "run benchmark");
+        const bench_cmd = b.addRunArtifact(bench);
+        bench_step.dependOn(&bench_cmd.step);
     }
+
 }
