@@ -10,13 +10,12 @@ pub fn AABB(comptime T: type) type {
 
         pub const InvDirection = struct {
             inv_direction: @Vector(3, T), // 1 / ray direction
-            is_parallel: @Vector(3,bool), // true if ray direction is close to zero
+            is_parallel: @Vector(3, bool), // true if ray direction is close to zero
 
             pub fn from_direction(direction: @Vector(3, T)) @This() {
-
                 return .{
-                    .is_parallel = @abs(direction) < @as(@Vector(3,T), @splat(1.0e-20)), 
-                    .inv_direction = @as(@Vector(3,T), @splat(1)) / direction,
+                    .is_parallel = @abs(direction) < @as(@Vector(3, T), @splat(1.0e-20)),
+                    .inv_direction = @as(@Vector(3, T), @splat(1)) / direction,
                 };
             }
         };
@@ -36,7 +35,6 @@ pub fn AABB(comptime T: type) type {
             return !(nooverlap_x | nooverlap_y | nooverlap_z);
         }
 
-
         pub fn ray_intersection_with_inverse(self: Self, origin: @Vector(3, T), inv_direction: InvDirection) T {
             const flt_min: @Vector(3, T) = @as(@Vector(3, T), @splat(-math.floatMax(T)));
             const flt_max: @Vector(3, T) = @as(@Vector(3, T), @splat(math.floatMax(T)));
@@ -45,30 +43,30 @@ pub fn AABB(comptime T: type) type {
             const t1 = (self.min - origin) * inv_direction.inv_direction;
             const t2 = (self.max - origin) * inv_direction.inv_direction;
 
-	        // Compute the max of min(t1,t2) and the min of max(t1,t2) ensuring we don't
-	        // use the results from any directions parallel to the slab.
+            // Compute the max of min(t1,t2) and the min of max(t1,t2) ensuring we don't
+            // use the results from any directions parallel to the slab.
             var t_min = @select(T, @min(t1, t2), flt_min, inv_direction.is_parallel);
             var t_max = @select(T, @max(t1, t2), flt_max, inv_direction.is_parallel);
-	
-	        // t_min.xyz = maximum(t_min.x, t_min.y, t_min.z);
-	        t_min = @max(t_min, vec.swizzle(t_min, "yzx"));
-	        t_min = @max(t_min, vec.swizzle(t_min, "zxy"));
 
-	        // t_max.xyz = minimum(t_max.x, t_max.y, t_max.z);
-	        t_max = @min(t_max, vec.swizzle(t_max, "yzx"));
-	        t_max = @min(t_max, vec.swizzle(t_max, "zxy"));
+            // t_min.xyz = maximum(t_min.x, t_min.y, t_min.z);
+            t_min = @max(t_min, vec.swizzle(t_min, "yzx"));
+            t_min = @max(t_min, vec.swizzle(t_min, "zxy"));
 
-	        // if (t_min > t_max) return FLT_MAX;
-	        var no_intersections: @Vector(3, bool) = t_min > t_max;
+            // t_max.xyz = minimum(t_max.x, t_max.y, t_max.z);
+            t_max = @min(t_max, vec.swizzle(t_max, "yzx"));
+            t_max = @min(t_max, vec.swizzle(t_max, "zxy"));
 
-	        // if (t_max < 0.0f) return FLT_MAX;
-	        no_intersections = no_intersections | (t_max < @as(@Vector(3, T), @splat(0)));
+            // if (t_min > t_max) return FLT_MAX;
+            var no_intersections: @Vector(3, bool) = t_min > t_max;
 
-	        // if (inInvDirection.mIsParallel && !(Min <= inOrigin && inOrigin <= Max)) return FLT_MAX; else return t_min;
-	        const no_parallel_overlap = (origin < self.min) | (origin > self.max);
-	        no_intersections = no_intersections | (inv_direction.is_parallel & no_parallel_overlap);
-	        no_intersections = no_intersections | @as(@Vector(3, bool), @splat(no_intersections[1]));
-	        no_intersections = no_intersections | @as(@Vector(3, bool), @splat(no_intersections[2]));
+            // if (t_max < 0.0f) return FLT_MAX;
+            no_intersections = no_intersections | (t_max < @as(@Vector(3, T), @splat(0)));
+
+            // if (inInvDirection.mIsParallel && !(Min <= inOrigin && inOrigin <= Max)) return FLT_MAX; else return t_min;
+            const no_parallel_overlap = (origin < self.min) | (origin > self.max);
+            no_intersections = no_intersections | (inv_direction.is_parallel & no_parallel_overlap);
+            no_intersections = no_intersections | @as(@Vector(3, bool), @splat(no_intersections[1]));
+            no_intersections = no_intersections | @as(@Vector(3, bool), @splat(no_intersections[2]));
 
             return @select(T, t_min, flt_max, no_intersections)[0];
         }
@@ -88,11 +86,8 @@ pub fn AABB(comptime T: type) type {
             return self.max - self.min;
         }
 
-        pub fn encapsulate_aabb(self: Self, inRHS: Self) Self{
-            return .{
-                .min = @min(self.min, inRHS.min),
-                .max = @max(self.max, inRHS.max)
-            };
+        pub fn encapsulate_aabb(self: Self, inRHS: Self) Self {
+            return .{ .min = @min(self.min, inRHS.min), .max = @max(self.max, inRHS.max) };
         }
 
         pub fn intersect(self: Self, inRHS: Self) Self {
@@ -109,27 +104,24 @@ pub fn AABB(comptime T: type) type {
     };
 }
 
-
 test "InvDirection" {
     const AABBf32 = AABB(f32);
     const dir = @Vector(3, f32){ 1.0, 0.0, -1.0 };
     const invDir = AABBf32.InvDirection.from_direction(dir);
-    try std.testing.expectEqual(invDir.is_parallel, @Vector(3,bool){ false, true, false });
+    try std.testing.expectEqual(invDir.is_parallel, @Vector(3, bool){ false, true, false });
     try std.testing.expectApproxEqRel(invDir.inv_direction[0], 1.0, 1.0e-6);
     try std.testing.expectApproxEqRel(invDir.inv_direction[1], 0.0, 1.0e-6);
     try std.testing.expectApproxEqRel(invDir.inv_direction[2], -1.0, 1.0e-6);
 }
 
-
-
 //const Plane = struct {
 //    normal: @Vector(3, f32),
 //    distance: f32,
-//    
+//
 //    pub fn getNormal(self: @This()) @Vector(3, f32) {
 //        return self.normal;
 //    }
-//    
+//
 //    pub fn signedDistance(self: @This(), point: @Vector(3, f32)) f32 {
 //        return @reduce(.Add, self.normal * point) + self.distance;
 //    }
@@ -181,8 +173,8 @@ test "InvDirection" {
 //
 ///// Check if the bounding box is valid (max >= min)
 //pub fn isValid(self: AABox) bool {
-//    return self.min[0] <= self.max[0] and 
-//           self.min[1] <= self.max[1] and 
+//    return self.min[0] <= self.max[0] and
+//           self.min[1] <= self.max[1] and
 //           self.min[2] <= self.max[2];
 //}
 //
@@ -303,7 +295,7 @@ test "InvDirection" {
 //pub fn translateD(self: *AABox, translation: DVec3) void {
 //    const min_d = DVec3{ self.min[0], self.min[1], self.min[2] } + translation;
 //    const max_d = DVec3{ self.max[0], self.max[1], self.max[2] } + translation;
-//    
+//
 //    // Round down for min, round up for max to ensure conservative bounds
 //    self.min = Vec3{ @floatCast(min_d[0]), @floatCast(min_d[1]), @floatCast(min_d[2]) };
 //    self.max = Vec3{ @floatCast(max_d[0]), @floatCast(max_d[1]), @floatCast(max_d[2]) };
@@ -319,10 +311,10 @@ test "InvDirection" {
 //    var c: u32 = 0;
 //    while (c < 3) : (c += 1) {
 //        const col = Vec3{ matrix[0][c], matrix[1][c], matrix[2][c] };
-//        
+//
 //        const a = col * vec3Replicate(self.min[c]);
 //        const b = col * vec3Replicate(self.max[c]);
-//        
+//
 //        new_min += vec3Min(a, b);
 //        new_max += vec3Max(a, b);
 //    }
@@ -360,7 +352,7 @@ test "InvDirection" {
 ///// Get the vertices of the face that faces direction the most
 //pub fn getSupportingFace(self: AABox, direction: Vec3, vertices: *[4]Vec3) void {
 //    const axis = getHighestComponentIndex(direction);
-//    
+//
 //    if (direction[axis] < 0.0) {
 //        switch (axis) {
 //            0 => {
@@ -422,23 +414,23 @@ test "InvDirection" {
 //// Tests
 //test "AABox basic functionality" {
 //    const testing = std.testing;
-//    
+//
 //    // Test creation from two points
 //    const p1 = Vec3{ 0, 0, 0 };
 //    const p2 = Vec3{ 1, 1, 1 };
 //    const box = fromTwoPoints(p1, p2);
-//    
+//
 //    try testing.expectEqual(Vec3{ 0, 0, 0 }, box.min);
 //    try testing.expectEqual(Vec3{ 1, 1, 1 }, box.max);
-//    
+//
 //    // Test center calculation
 //    const center = box.getCenter();
 //    try testing.expectEqual(Vec3{ 0.5, 0.5, 0.5 }, center);
-//    
+//
 //    // Test size calculation
 //    const size = box.getSize();
 //    try testing.expectEqual(Vec3{ 1, 1, 1 }, size);
-//    
+//
 //    // Test contains point
 //    try testing.expect(box.containsPoint(Vec3{ 0.5, 0.5, 0.5 }));
 //    try testing.expect(!box.containsPoint(Vec3{ 2, 2, 2 }));
@@ -446,10 +438,10 @@ test "InvDirection" {
 //
 //test "AABox encapsulation" {
 //    const testing = std.testing;
-//    
+//
 //    var box = fromTwoPoints(Vec3{ 0, 0, 0 }, Vec3{ 1, 1, 1 });
 //    box.encapsulate(Vec3{ 2, 0.5, 0.5 });
-//    
+//
 //    try testing.expectEqual(Vec3{ 0, 0, 0 }, box.min);
 //    try testing.expectEqual(Vec3{ 2, 1, 1 }, box.max);
 //}

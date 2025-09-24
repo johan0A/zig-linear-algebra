@@ -345,7 +345,8 @@ pub fn is_normalized_default(a: anytype) bool {
 }
 
 pub fn is_normalized(a: anytype, tolerance: Float(@bitSizeOf(std.meta.Child(@TypeOf(a))))) bool {
-    return norm_sqr(a - 1.0) <= tolerance;
+    const inner_a = map_to_vector(a);
+    return @abs(norm_sqr(inner_a) - 1.0) <= tolerance;
 }
 
 test scale {
@@ -511,7 +512,7 @@ test sin_cos {
     while (x < 100.0 * std.math.pi) : (x += 1.0e-3) {
         const xv = @as(Vec4f32, @splat(x)) + Vec4f32{ 0.0e-4, 2.5e-4, 5.0e-4, 7.5e-4 };
         const res2 = sin_cos(xv);
-        for (0..3) |i| {
+        inline for (0..3) |i| {
             const s1 = std.math.sin(xv[i]);
             const s2 = res2.sin_out[i];
             ms = @max(ms, @abs(s1 - s2));

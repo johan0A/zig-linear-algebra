@@ -3,6 +3,7 @@ const vec = @import("../vector.zig");
 
 pub const AABB = @import("aabb.zig").AABB;
 pub const Plane = @import("plane.zig").Plane;
+pub const Sphere = @import("sphere.zig").Sphere;
 
 pub fn get_vector_from_buffer(comptime T: type, vertex_index: usize, buffer: []align(4) const u8, byte_offset: usize, byte_stride: usize) T {
     const vector_len = switch(@typeInfo(T)) {

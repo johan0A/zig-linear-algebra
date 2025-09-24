@@ -183,7 +183,7 @@ pub fn Mat(comptime T: type, comptime cols_: usize, comptime rows_: usize) type 
             if (rows != cols) @compileError("Transform matrix must be square");
 
             var result = self;
-            for (0..rows - 1) |i| {
+            inline for (0..rows - 1) |i| {
                 result.items[i][0 .. rows - 1].* = self.items[i][0 .. rows - 1].* * @as(@Vector(rows - 1, T), @splat(factors[i]));
             }
 
@@ -408,4 +408,3 @@ test "scale" {
         }
     }
 }
-
