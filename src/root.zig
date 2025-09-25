@@ -1,6 +1,7 @@
 pub const vec = @import("vector.zig");
 pub const quat = @import("quat.zig");
 pub const Mat = @import("matrix.zig").Mat;
+const std = @import("std");
 
 const Vec4f32 = vec.Vec4f32;
 const Vec3f32 = vec.Vec3f32;
@@ -19,7 +20,6 @@ test {
     @import("std").testing.refAllDeclsRecursive(@This());
 }
 
-const std = @import("std");
 
 pub fn to_radians(degrees: anytype) @TypeOf(degrees) {
     return degrees * (std.math.pi / 180);

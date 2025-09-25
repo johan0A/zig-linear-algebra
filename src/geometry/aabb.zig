@@ -1,8 +1,12 @@
 const std = @import("std");
-const vec = @import("../vector.zig");
+const zla = @import("../root.zig");
+const geometry = zla.geom;
 
 pub fn AABB(comptime T: type) type {
     return struct {
+        pub const inner_type: type = T;
+        pub const primative_type: geometry.Primative = .AABB;
+
         min: @Vector(3, T),
         max: @Vector(3, T),
         const Self = @This();
@@ -19,21 +23,6 @@ pub fn AABB(comptime T: type) type {
             }
         };
 
-        /// Test overlap of this box with 4 other boxes in parallel, returns a vector of bools indicating overlap for each box
-        pub fn test_4_boxes(self: Self, minX: @Vector(4, T), maxX: @Vector(4, T), minY: @Vector(4, T), maxY: @Vector(4, T), minZ: @Vector(4, T), maxZ: @Vector(4, T)) @Vector(4, bool) {
-            const box1_minx = @as(@TypeOf(@Vector(4, T)), @splat(self.min[0]));
-            const box1_miny = @as(@TypeOf(@Vector(4, T)), @splat(self.min[1]));
-            const box1_minz = @as(@TypeOf(@Vector(4, T)), @splat(self.min[2]));
-            const box1_maxx = @as(@TypeOf(@Vector(4, T)), @splat(self.max[0]));
-            const box1_maxy = @as(@TypeOf(@Vector(4, T)), @splat(self.max[1]));
-            const box1_maxz = @as(@TypeOf(@Vector(4, T)), @splat(self.max[2]));
-
-            const nooverlap_x = (box1_minx > maxX) | (box1_maxx < minX);
-            const nooverlap_y = (box1_miny > maxY) | (box1_maxy < minY);
-            const nooverlap_z = (box1_minz > maxZ) | (box1_maxz < minZ);
-            return !(nooverlap_x | nooverlap_y | nooverlap_z);
-        }
-
         pub fn ray_intersection_with_inverse(self: Self, origin: @Vector(3, T), inv_direction: InvDirection) T {
             const flt_min: @Vector(3, T) = @as(@Vector(3, T), @splat(-std.math.floatMax(T)));
             const flt_max: @Vector(3, T) = @as(@Vector(3, T), @splat(std.math.floatMax(T)));
@@ -48,12 +37,12 @@ pub fn AABB(comptime T: type) type {
             var t_max = @select(T, @max(t1, t2), flt_max, inv_direction.is_parallel);
 
             // t_min.xyz = maximum(t_min.x, t_min.y, t_min.z);
-            t_min = @max(t_min, vec.swizzle(t_min, "yzx"));
-            t_min = @max(t_min, vec.swizzle(t_min, "zxy"));
+            t_min = @max(t_min, zla.vec.swizzle(t_min, "yzx"));
+            t_min = @max(t_min, zla.vec.swizzle(t_min, "zxy"));
 
             // t_max.xyz = minimum(t_max.x, t_max.y, t_max.z);
-            t_max = @min(t_max, vec.swizzle(t_max, "yzx"));
-            t_max = @min(t_max, vec.swizzle(t_max, "zxy"));
+            t_max = @min(t_max, zla.vec.swizzle(t_max, "yzx"));
+            t_max = @min(t_max, zla.vec.swizzle(t_max, "zxy"));
 
             // if (t_min > t_max) return FLT_MAX;
             var no_intersections: @Vector(3, bool) = t_min > t_max;
@@ -68,6 +57,15 @@ pub fn AABB(comptime T: type) type {
             no_intersections = no_intersections | @as(@Vector(3, bool), @splat(no_intersections[2]));
 
             return @select(T, t_min, flt_max, no_intersections)[0];
+        }
+
+        /// Get the closest point on or in this box to point
+        pub fn get_closest_point(self: Self, point: @Vector(3, T)) @Vector(3, T) {
+            return @min(@max(point, self.min), self.max);
+        }
+
+        pub fn get_sqr_distance_to(self: Self, point: @Vector(3, T)) T {
+            return zla.vec.norm_sqr(self.get_closest_point(point) - point);
         }
 
         pub fn from_two_points(p1: @Vector(3, T), p2: @Vector(3, T)) @This() {
@@ -85,8 +83,13 @@ pub fn AABB(comptime T: type) type {
             return self.max - self.min;
         }
 
-        pub fn encapsulate_aabb(self: Self, inRHS: Self) Self {
-            return .{ .min = @min(self.min, inRHS.min), .max = @max(self.max, inRHS.max) };
+        // Calculate the support vector for this convex shape
+        pub fn get_support(self: @This(), direction: @Vector(3, T)) @Vector(3, T) {
+            return @select(T, self.max, self.max, direction < @as(@Vector(3, T), @splat(0)));
+        }
+
+        pub fn encapsulate_aabb(self: Self, a: Self) Self {
+            return .{ .min = @min(self.min, a.min), .max = @max(self.max, a.max) };
         }
 
         pub fn intersect(self: Self, inRHS: Self) Self {
