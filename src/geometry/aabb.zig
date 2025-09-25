@@ -1,6 +1,5 @@
 const std = @import("std");
 const vec = @import("../vector.zig");
-const math = std.math;
 
 pub fn AABB(comptime T: type) type {
     return struct {
@@ -36,8 +35,8 @@ pub fn AABB(comptime T: type) type {
         }
 
         pub fn ray_intersection_with_inverse(self: Self, origin: @Vector(3, T), inv_direction: InvDirection) T {
-            const flt_min: @Vector(3, T) = @as(@Vector(3, T), @splat(-math.floatMax(T)));
-            const flt_max: @Vector(3, T) = @as(@Vector(3, T), @splat(math.floatMax(T)));
+            const flt_min: @Vector(3, T) = @as(@Vector(3, T), @splat(-std.math.floatMax(T)));
+            const flt_max: @Vector(3, T) = @as(@Vector(3, T), @splat(std.math.floatMax(T)));
 
             // test against all three axes simultaneously
             const t1 = (self.min - origin) * inv_direction.inv_direction;

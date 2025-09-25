@@ -1,9 +1,23 @@
 const std = @import("std");
-const vec = @import("../vector.zig");
+const vec = @import("vector.zig");
 
-pub const AABB = @import("aabb.zig").AABB;
-pub const Plane = @import("plane.zig").Plane;
-pub const Sphere = @import("sphere.zig").Sphere;
+pub const AABB = @import("geometry/aabb.zig").AABB;
+pub const Plane = @import("geometry/plane.zig").Plane;
+pub const Sphere = @import("geometry/sphere.zig").Sphere;
+pub const OrientedBox = @import("geometry/oriented_box.zig").OrientedBox;
+pub const overlap = @import("geometry/overlap.zig");
+
+test {
+    @import("std").testing.refAllDeclsRecursive(@This());
+}
+
+pub const Primative = enum {
+    AABB,
+    Plane,
+    Sphere,
+    OrientedBox,
+};
+
 
 pub fn get_vector_from_buffer(comptime T: type, vertex_index: usize, buffer: []align(4) const u8, byte_offset: usize, byte_stride: usize) T {
     const vector_len = switch(@typeInfo(T)) {
@@ -21,11 +35,6 @@ pub fn get_vector_from_buffer(comptime T: type, vertex_index: usize, buffer: []a
     @memcpy(std.mem.asBytes(&arr), byte_slice);
     return arr;
 }
-
-test {
-    @import("std").testing.refAllDeclsRecursive(@This());
-}
-
 
 test "vector_from_buffer - basic 2D f32 vector extraction" {
     // Create a buffer with 2D f32 vectors: [1.0, 2.0], [3.0, 4.0], [5.0, 6.0]
@@ -202,3 +211,4 @@ test "vector_from_buffer - mixed data types with padding" {
     try std.testing.expectEqual(@as(f32, 0.5), norm2[1]);
     try std.testing.expectEqual(@as(f32, 0.6), norm2[2]);
 }
+

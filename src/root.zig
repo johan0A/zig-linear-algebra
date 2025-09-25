@@ -13,7 +13,7 @@ const Vec2f64 = vec.Vec2f64;
 const Quat4f32 = quat.Quat4f32;
 const Quat4f64 = quat.Quat4f64;
 
-pub const geom = @import("geometry/geom.zig");
+pub const geom = @import("geometry.zig");
 
 test {
     @import("std").testing.refAllDeclsRecursive(@This());

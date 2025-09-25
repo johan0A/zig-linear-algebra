@@ -6,7 +6,7 @@ pub fn Plane(comptime T: type) type {
     return struct {
         normal: @Vector(3, T), // normal vector
         c: T, // constant
-
+        
         const Self = @This();
 
         pub fn normal_and_constant(self: Self) @Vector(4, T) {
