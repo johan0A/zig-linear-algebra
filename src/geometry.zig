@@ -4,7 +4,7 @@ const vec = @import("vector.zig");
 pub const AABB = @import("geometry/aabb.zig").AABB;
 pub const Plane = @import("geometry/plane.zig").Plane;
 pub const Sphere = @import("geometry/sphere.zig").Sphere;
-pub const OrientedBox = @import("geometry/oriented_box.zig").OrientedBox;
+pub const OrientedBoundedBox = @import("geometry/obb.zig").OrientedBoundedBox;
 pub const overlap = @import("geometry/overlap.zig");
 
 test {
@@ -16,6 +16,7 @@ pub const Primative = enum {
     Plane,
     Sphere,
     OrientedBox,
+    Capsule,
 };
 
 

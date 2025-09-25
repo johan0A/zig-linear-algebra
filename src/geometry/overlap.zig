@@ -5,6 +5,7 @@ const geometry = @import("../geometry.zig");
 const Sphere = @import("sphere.zig").Sphere;
 const vector = @import("../vector.zig");
 
+// aabb
 pub fn overlap_sphere_sphere(a: anytype, b: anytype) bool {
     if (@TypeOf(a).primative_type != .Sphere) @compileError("Expected Sphere" ++ @typeName(@TypeOf(a)));
     if (@TypeOf(b).primative_type != .Sphere) @compileError("Expected Sphere" ++ @typeName(@TypeOf(b)));
@@ -18,12 +19,13 @@ pub fn overlap_aabb_aabb(a: anytype, b: anytype) bool {
     return !@reduce(.Or, (a.min > b.max) | (a.max < b.min));
 }
 
-//pub fn overlap_aabb_plane(a: anytype, b: anytype) bool {
-//    if (@TypeOf(a).primative_type != .AABB) @compileError("Expected AABB" ++ @typeName(@TypeOf(a)));
-//    if (@TypeOf(b).primative_type != .Plane) @compileError("Expected Plane" ++ @typeName(@TypeOf(b)));
-//
-//
-//}
+pub fn overlap_aabb_plane(a: anytype, b: anytype) bool {
+    if (@TypeOf(a).primative_type != .AABB) @compileError("Expected AABB" ++ @typeName(@TypeOf(a)));
+    if (@TypeOf(b).primative_type != .Plane) @compileError("Expected Plane" ++ @typeName(@TypeOf(b)));
+    const dist_normal = b.signed_distance(a.get_support(b.normal));
+    const dist_min_normal = b.signed_distance(a.get_support(-b.normal));
+    return dist_normal * dist_min_normal <= 0;
+}
 
 pub fn overlap_aabb_aabb_4(a: anytype, minX: @Vector(4, @TypeOf(a).inner_type), maxX: @Vector(4, @TypeOf(a).inner_type), minY: @Vector(4, @TypeOf(a).inner_type), maxY: @Vector(4, @TypeOf(a).inner_type), minZ: @Vector(4, @TypeOf(a).inner_type), maxZ: @Vector(4, @TypeOf(a).inner_type)) @Vector(4, bool) {
     if (@TypeOf(a).primative_type != .AABB) @compileError("Expected AABB" ++ @typeName(@TypeOf(a)));
@@ -40,15 +42,12 @@ pub fn overlap_aabb_aabb_4(a: anytype, minX: @Vector(4, @TypeOf(a).inner_type), 
     return !(nooverlap_x | nooverlap_y | nooverlap_z);
 }
 
+// generic overlap function
 pub inline fn overlap(a: anytype, b: anytype) bool {
     const a_primative: geometry.Primative = @TypeOf(a).primative_type;
     const b_primative: geometry.Primative = @TypeOf(b).primative_type;
-    if (a_primative == .Sphere and b_primative == .Sphere) {
-        return overlap_sphere_sphere(a, b);
-    }
-    if(a_primative == .AABB and b_primative == .AABB) {
-        return overlap_aabb_aabb(a, b);
-    }
+    if (a_primative == .Sphere and b_primative == .Sphere) return overlap_sphere_sphere(a, b);
+    if (a_primative == .AABB and b_primative == .AABB) return overlap_aabb_aabb(a, b);
     @compileError("Unsupported primative overlap: " ++ @typeName(a_primative) ++ " " ++ @typeName(b_primative));
 }
 
@@ -68,14 +67,13 @@ test overlap_aabb_aabb {
     const aabb2: geometry.AABB(f32) = .from_two_points(.{ 1, 1, 1 }, .{ 3, 3, 3 }); // Overlapping
     const aabb3: geometry.AABB(f32) = .from_two_points(.{ 5, 5, 5 }, .{ 7, 7, 7 }); // Non-overlapping
     const aabb4: geometry.AABB(f32) = .from_two_points(.{ 2, 0, 0 }, .{ 4, 2, 2 }); // Edge touching
-    
+
     try std.testing.expect(overlap_aabb_aabb(aabb1, aabb2)); // Overlapping boxes should return true
     try std.testing.expect(!overlap_aabb_aabb(aabb1, aabb3)); // Non-overlapping boxes should return false
     try std.testing.expect(overlap_aabb_aabb(aabb1, aabb4)); // Edge touching boxes should return true
-    
+
     // Symmetric - test the generic overlap function
     try std.testing.expect(overlap(aabb1, aabb2));
     try std.testing.expect(!overlap(aabb1, aabb3));
     try std.testing.expect(overlap(aabb2, aabb1));
 }
-

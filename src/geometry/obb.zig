@@ -1,7 +1,7 @@
 const Mat = @import("../matrix.zig").Mat; 
 const geometry = @import("../geometry.zig");
 
-pub fn OrientedBox(comptime T: type) type {
+pub fn OrientedBoundedBox(comptime T: type) type {
     return struct {
         pub const primative_type = geometry.Primative.OrientedBox; 
         orientation: Mat(4,4, T),

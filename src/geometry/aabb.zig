@@ -85,7 +85,7 @@ pub fn AABB(comptime T: type) type {
 
         // Calculate the support vector for this convex shape
         pub fn get_support(self: @This(), direction: @Vector(3, T)) @Vector(3, T) {
-            return @select(T, self.max, self.max, direction < @as(@Vector(3, T), @splat(0)));
+            return @select(T, direction < @as(@Vector(3, T), @splat(0)), self.max, self.min);
         }
 
         pub fn encapsulate_aabb(self: Self, a: Self) Self {
@@ -114,6 +114,20 @@ test "InvDirection" {
     try std.testing.expectApproxEqRel(invDir.inv_direction[0], 1.0, 1.0e-6);
     try std.testing.expectApproxEqRel(invDir.inv_direction[1], 0.0, 1.0e-6);
     try std.testing.expectApproxEqRel(invDir.inv_direction[2], -1.0, 1.0e-6);
+}
+
+test "aabb_get_support" {
+
+        const aabb: AABB(f32) = .from_two_points(.{0.0, 0.0, 0.0}, .{1.0, 1.0, 1.0});
+
+        try std.testing.expect(zla.vec.is_close_default(aabb.get_support(.{ 0.5774,  0.5774,  0.5774}), .{0.0, 0.0, 0.0}));
+        try std.testing.expect(zla.vec.is_close_default(aabb.get_support(.{ 0.5774,  0.5774, -0.5774}), .{0.0, 0.0, 1.0}));
+        try std.testing.expect(zla.vec.is_close_default(aabb.get_support(.{ 0.5774, -0.5774,  0.5774}), .{0.0, 1.0, 0.0}));
+        try std.testing.expect(zla.vec.is_close_default(aabb.get_support(.{ 0.5774, -0.5774, -0.5774}), .{0.0, 1.0, 1.0}));
+        try std.testing.expect(zla.vec.is_close_default(aabb.get_support(.{-0.5774,  0.5774,  0.5774}), .{1.0, 0.0, 0.0}));
+        try std.testing.expect(zla.vec.is_close_default(aabb.get_support(.{-0.5774,  0.5774, -0.5774}), .{1.0, 0.0, 1.0}));
+        try std.testing.expect(zla.vec.is_close_default(aabb.get_support(.{-0.5774, -0.5774,  0.5774}), .{1.0, 1.0, 0.0}));
+        try std.testing.expect(zla.vec.is_close_default(aabb.get_support(.{-0.5774, -0.5774, -0.5774}), .{1.0, 1.0, 1.0}));
 }
 
 //const Plane = struct {

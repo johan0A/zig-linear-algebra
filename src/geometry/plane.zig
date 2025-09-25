@@ -2,8 +2,14 @@ const std = @import("std");
 const vec = @import("../vector.zig");
 const Mat = @import("../matrix.zig").Mat;
 
+const zla = @import("../root.zig");
+const geometry = zla.geom;
+
 pub fn Plane(comptime T: type) type {
     return struct {
+        pub const inner_type: type = T;
+        pub const primative_type: geometry.Primative = .Plane;
+
         normal: @Vector(3, T), // normal vector
         c: T, // constant
         
