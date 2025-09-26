@@ -4,7 +4,7 @@ const geometry = zla.geom;
 
 pub fn AABB(comptime T: type) type {
     return struct {
-        pub const inner_type: type = T;
+        pub const child: type = T;
         pub const primative_type: geometry.Primative = .AABB;
 
         min: @Vector(3, T),
