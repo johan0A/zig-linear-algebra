@@ -12,6 +12,7 @@ pub fn Mat(comptime T: type, comptime cols_: usize, comptime rows_: usize) type 
 
         items: [cols][rows]T,
 
+
         pub inline fn from_column_major_array(values: [cols][rows]T) Self {
             return .{ .items = values };
         }
@@ -167,7 +168,9 @@ pub fn Mat(comptime T: type, comptime cols_: usize, comptime rows_: usize) type 
         }
 
         pub fn translate(self: Self, vector: @Vector(rows - 1, T)) Self {
-            if (rows != cols) @compileError("Transform matrix must be square");
+            comptime {
+                std.debug.assert(rows == cols);
+            }
             var result = self;
             result.items[cols - 1][0 .. rows - 1].* = self.items[cols - 1][0 .. rows - 1].* + vector;
             return result;

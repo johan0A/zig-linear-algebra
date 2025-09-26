@@ -6,10 +6,10 @@ pub fn AABB(comptime T: type) type {
     return struct {
         pub const child: type = T;
         pub const primative_type: geometry.Primative = .AABB;
+        const Self = @This();
 
         min: @Vector(3, T),
         max: @Vector(3, T),
-        const Self = @This();
 
         pub const InvDirection = struct {
             inv_direction: @Vector(3, T), // 1 / ray direction
@@ -23,42 +23,6 @@ pub fn AABB(comptime T: type) type {
             }
         };
 
-        pub fn ray_intersection_with_inverse(self: Self, origin: @Vector(3, T), inv_direction: InvDirection) T {
-            const flt_min: @Vector(3, T) = @as(@Vector(3, T), @splat(-std.math.floatMax(T)));
-            const flt_max: @Vector(3, T) = @as(@Vector(3, T), @splat(std.math.floatMax(T)));
-
-            // test against all three axes simultaneously
-            const t1 = (self.min - origin) * inv_direction.inv_direction;
-            const t2 = (self.max - origin) * inv_direction.inv_direction;
-
-            // Compute the max of min(t1,t2) and the min of max(t1,t2) ensuring we don't
-            // use the results from any directions parallel to the slab.
-            var t_min = @select(T, @min(t1, t2), flt_min, inv_direction.is_parallel);
-            var t_max = @select(T, @max(t1, t2), flt_max, inv_direction.is_parallel);
-
-            // t_min.xyz = maximum(t_min.x, t_min.y, t_min.z);
-            t_min = @max(t_min, zla.vec.swizzle(t_min, "yzx"));
-            t_min = @max(t_min, zla.vec.swizzle(t_min, "zxy"));
-
-            // t_max.xyz = minimum(t_max.x, t_max.y, t_max.z);
-            t_max = @min(t_max, zla.vec.swizzle(t_max, "yzx"));
-            t_max = @min(t_max, zla.vec.swizzle(t_max, "zxy"));
-
-            // if (t_min > t_max) return FLT_MAX;
-            var no_intersections: @Vector(3, bool) = t_min > t_max;
-
-            // if (t_max < 0.0f) return FLT_MAX;
-            no_intersections = no_intersections | (t_max < @as(@Vector(3, T), @splat(0)));
-
-            // if (inInvDirection.mIsParallel && !(Min <= inOrigin && inOrigin <= Max)) return FLT_MAX; else return t_min;
-            const no_parallel_overlap = (origin < self.min) | (origin > self.max);
-            no_intersections = no_intersections | (inv_direction.is_parallel & no_parallel_overlap);
-            no_intersections = no_intersections | @as(@Vector(3, bool), @splat(no_intersections[1]));
-            no_intersections = no_intersections | @as(@Vector(3, bool), @splat(no_intersections[2]));
-
-            return @select(T, t_min, flt_max, no_intersections)[0];
-        }
-
         /// Get the closest point on or in this box to point
         pub fn get_closest_point(self: Self, point: @Vector(3, T)) @Vector(3, T) {
             return @min(@max(point, self.min), self.max);
@@ -69,30 +33,60 @@ pub fn AABB(comptime T: type) type {
         }
 
         pub fn from_two_points(p1: @Vector(3, T), p2: @Vector(3, T)) @This() {
+            std.debug.assert(@reduce(.And, p1 <= p2));
             return @This(){
                 .min = @min(p1, p2),
                 .max = @max(p1, p2),
             };
         }
 
+        pub fn translate(self: Self, translation: @Vector(3, T)) Self {
+            std.debug.assert(@reduce(.And, self.min <= self.max));
+            return .{
+                .min = Self.min + translation,
+                .max = Self.max + translation,
+            };
+        }
+
+        pub fn transform(self: Self, mat: zla.Mat(T, 4, 4)) Self {
+            const pos = mat.position();
+            var new_min = pos;
+            var new_max = pos;
+
+            inline for (0..3) |c| {
+                const m_col = mat.column(c);
+                const col: @Vector(3, T) = .{ m_col[0], m_col[1], m_col[2] };
+                const a = col * @as(@Vector(3, T), @splat(self.min[c]));
+                const b = col * @as(@Vector(3, T), @splat(self.max[c]));
+                new_min += @min(a, b);
+                new_max += @max(a, b);
+            }
+            return .{ .min = new_min, .max = new_max };
+        }
+
         pub fn get_center(self: @This()) @Vector(3, T) {
+            std.debug.assert(@reduce(.And, self.min <= self.max));
             return (self.min + self.max) * (@as(T, 0.5));
         }
 
         pub fn get_size(self: @This()) @Vector(3, T) {
+            std.debug.assert(@reduce(.And, self.min <= self.max));
             return self.max - self.min;
         }
 
         // Calculate the support vector for this convex shape
         pub fn get_support(self: @This(), direction: @Vector(3, T)) @Vector(3, T) {
+            std.debug.assert(@reduce(.And, self.min <= self.max));
             return @select(T, direction < @as(@Vector(3, T), @splat(0)), self.max, self.min);
         }
 
         pub fn encapsulate_aabb(self: Self, a: Self) Self {
+            std.debug.assert(@reduce(.And, self.min <= self.max));
             return .{ .min = @min(self.min, a.min), .max = @max(self.max, a.max) };
         }
 
         pub fn intersect(self: Self, inRHS: Self) Self {
+            std.debug.assert(@reduce(.And, self.min <= self.max));
             return Self{
                 .min = @max(self.min, inRHS.min),
                 .max = @min(self.max, inRHS.max),
@@ -100,10 +94,45 @@ pub fn AABB(comptime T: type) type {
         }
 
         pub fn expand_by(self: *Self, in: @Vector(3, T)) void {
+            std.debug.assert(@reduce(.And, self.min <= self.max));
             self.min -= in;
             self.max += in;
         }
+
+        pub fn surface_area(self: Self) T {
+            std.debug.assert(@reduce(.And, self.min <= self.max));
+            const extent = self.max - self.min;
+            return 2 * zla.vec.dot(zla.vec.swizzle(extent, "yzz"), zla.vec.swizzle(extent, "xxy"));
+        }
+
+        pub fn volume(self: Self) T {
+            std.debug.assert(@reduce(.And, self.min <= self.max));
+            const extent = self.max - self.min;
+            return @reduce(.Mul, extent);
+        }
     };
+}
+
+test "aabb_transform" {
+    const AABBf32 = AABB(f32);
+    const aabb = AABBf32.from_two_points(.{ 0.0, 0.0, 0.0 }, .{ 1.0, 1.0, 1.0 });
+    var translation: zla.Mat(f32, 4, 4) = .identity;
+    translation = translation.translate(.{ 1.0, 2.0, 3.0 });
+    const transformed = aabb.transform(translation);
+    try std.testing.expect(zla.vec.is_close_default(transformed.min, .{ 1.0, 2.0, 3.0 }));
+    try std.testing.expect(zla.vec.is_close_default(transformed.max, .{ 2.0, 3.0, 4.0 }));
+}
+
+test "surface_area" {
+    const AABBf32 = AABB(f32);
+    const aabb = AABBf32.from_two_points(.{ 0.0, 0.0, 0.0 }, .{ 1.0, 2.0, 3.0 });
+    try std.testing.expectApproxEqRel(aabb.surface_area(), 22.0, 1.0e-6);
+}
+
+test "volumn" {
+    const AABBf32 = AABB(f32);
+    const aabb = AABBf32.from_two_points(.{ 0.0, 0.0, 0.0 }, .{ 1.0, 2.0, 3.0 });
+    try std.testing.expectApproxEqRel(aabb.volume(), 6.0, 1.0e-6);
 }
 
 test "InvDirection" {
@@ -117,17 +146,16 @@ test "InvDirection" {
 }
 
 test "aabb_get_support" {
+    const aabb: AABB(f32) = .from_two_points(.{ 0.0, 0.0, 0.0 }, .{ 1.0, 1.0, 1.0 });
 
-        const aabb: AABB(f32) = .from_two_points(.{0.0, 0.0, 0.0}, .{1.0, 1.0, 1.0});
-
-        try std.testing.expect(zla.vec.is_close_default(aabb.get_support(.{ 0.5774,  0.5774,  0.5774}), .{0.0, 0.0, 0.0}));
-        try std.testing.expect(zla.vec.is_close_default(aabb.get_support(.{ 0.5774,  0.5774, -0.5774}), .{0.0, 0.0, 1.0}));
-        try std.testing.expect(zla.vec.is_close_default(aabb.get_support(.{ 0.5774, -0.5774,  0.5774}), .{0.0, 1.0, 0.0}));
-        try std.testing.expect(zla.vec.is_close_default(aabb.get_support(.{ 0.5774, -0.5774, -0.5774}), .{0.0, 1.0, 1.0}));
-        try std.testing.expect(zla.vec.is_close_default(aabb.get_support(.{-0.5774,  0.5774,  0.5774}), .{1.0, 0.0, 0.0}));
-        try std.testing.expect(zla.vec.is_close_default(aabb.get_support(.{-0.5774,  0.5774, -0.5774}), .{1.0, 0.0, 1.0}));
-        try std.testing.expect(zla.vec.is_close_default(aabb.get_support(.{-0.5774, -0.5774,  0.5774}), .{1.0, 1.0, 0.0}));
-        try std.testing.expect(zla.vec.is_close_default(aabb.get_support(.{-0.5774, -0.5774, -0.5774}), .{1.0, 1.0, 1.0}));
+    try std.testing.expect(zla.vec.is_close_default(aabb.get_support(.{ 0.5774, 0.5774, 0.5774 }), .{ 0.0, 0.0, 0.0 }));
+    try std.testing.expect(zla.vec.is_close_default(aabb.get_support(.{ 0.5774, 0.5774, -0.5774 }), .{ 0.0, 0.0, 1.0 }));
+    try std.testing.expect(zla.vec.is_close_default(aabb.get_support(.{ 0.5774, -0.5774, 0.5774 }), .{ 0.0, 1.0, 0.0 }));
+    try std.testing.expect(zla.vec.is_close_default(aabb.get_support(.{ 0.5774, -0.5774, -0.5774 }), .{ 0.0, 1.0, 1.0 }));
+    try std.testing.expect(zla.vec.is_close_default(aabb.get_support(.{ -0.5774, 0.5774, 0.5774 }), .{ 1.0, 0.0, 0.0 }));
+    try std.testing.expect(zla.vec.is_close_default(aabb.get_support(.{ -0.5774, 0.5774, -0.5774 }), .{ 1.0, 0.0, 1.0 }));
+    try std.testing.expect(zla.vec.is_close_default(aabb.get_support(.{ -0.5774, -0.5774, 0.5774 }), .{ 1.0, 1.0, 0.0 }));
+    try std.testing.expect(zla.vec.is_close_default(aabb.get_support(.{ -0.5774, -0.5774, -0.5774 }), .{ 1.0, 1.0, 1.0 }));
 }
 
 //const Plane = struct {

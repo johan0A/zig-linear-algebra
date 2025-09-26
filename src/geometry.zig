@@ -13,10 +13,12 @@ pub const Primative = enum {
 pub const AABB = @import("geometry/aabb.zig").AABB;
 pub const Plane = @import("geometry/plane.zig").Plane;
 pub const Sphere = @import("geometry/sphere.zig").Sphere;
+pub const Capsule = @import("geometry/capsule.zig").Capsule;
 pub const OrientedBoundedBox = @import("geometry/obb.zig").OrientedBoundedBox;
 
 pub const overlap = @import("geometry/overlap.zig");
 pub const ray = @import("geometry/ray.zig");
+pub const contains = @import("geometry/contains.zig");
 
 test {
     @import("std").testing.refAllDeclsRecursive(@This());
