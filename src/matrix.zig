@@ -284,10 +284,11 @@ pub fn Mat(
             };
         }
 
+        /// `fovy` is the vertical field of view in turns.
         pub fn perspective(fovy: T, aspect: T, near: T, far: T, config: Config) Self {
             if (rows != 4 or cols != 4) @compileError("perspective matrix must be 4x4");
 
-            const f = 1.0 / std.math.tan(fovy / 2.0);
+            const f = 1.0 / turn.tan(fovy / 2.0);
             const y_sign: T = if (config.y_direction == .y_down) -1.0 else 1.0;
 
             var result: Self = .zero;
@@ -309,11 +310,12 @@ pub fn Mat(
             return result;
         }
 
+        /// `fovy` is the vertical field of view in turns.
         pub fn perspectiveReverseZ(fovy: T, aspect: T, near: T, config: Config) Self {
             if (rows != 4 or cols != 4) @compileError("perspective matrix must be 4x4");
             std.debug.assert(config.clip_depth == .zero_to_one); // reverse-Z requires zero_to_one clip depth
 
-            const f = 1.0 / std.math.tan(fovy / 2.0);
+            const f = 1.0 / turn.tan(fovy / 2.0);
             const y_sign: T = if (config.y_direction == .y_down) -1.0 else 1.0;
 
             var result: Self = .zero;
@@ -423,13 +425,14 @@ pub fn Mat(
             self.* = self.scale(factors);
         }
 
+        /// `angle` is in turns.
         pub fn rotate(self: Self, angle: T, axis: [3]T) Self {
             if (rows != cols) @compileError("rotate requires a square matrix");
             if (rows < 3) @compileError("rotate requires at least 3x3");
 
             const a = vec.normalize(axis);
-            const co = std.math.cos(angle);
-            const s = std.math.sin(angle);
+            const co = turn.cos(angle);
+            const s = turn.sin(angle);
             const t = 1.0 - co;
 
             var rot: Self = .identity;
@@ -450,6 +453,7 @@ pub fn Mat(
             self.* = self.rotate(angle, axis);
         }
 
+        /// `angle` is in turns.
         pub fn fromAxisAngle(axis: [3]T, angle: T) Self {
             if (rows != cols) @compileError("fromAxisAngle requires a square matrix");
             if (rows < 3) @compileError("fromAxisAngle requires at least 3x3");
@@ -529,7 +533,7 @@ test "translate" {
 }
 
 test "translate with rotation" {
-    const rot: Mat(.cm, f32, 4, 4) = .fromAxisAngle(.{ 0, 0, 1 }, std.math.pi / 2.0);
+    const rot: Mat(.cm, f32, 4, 4) = .fromAxisAngle(.{ 0, 0, 1 }, 0.25);
     const translated = rot.translate(.{ 1, 0, 0 });
 
     try std.testing.expectApproxEqAbs(@as(f32, 0), translated.position()[0], 1e-5);
@@ -719,4 +723,5 @@ test "inverse 4x4" {
 
 const std = @import("std");
 const vec = @import("root.zig").vec;
+const turn = @import("root.zig").turn;
 const matrix = @This();

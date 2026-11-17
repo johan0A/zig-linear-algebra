@@ -1,4 +1,5 @@
 const std = @import("std");
+const turn = @import("turn.zig");
 
 fn arrayInfo(comptime V: type) std.builtin.Type.Array {
     const info = @typeInfo(V);
@@ -149,8 +150,9 @@ pub fn distance(v: anytype, other: @TypeOf(v)) OutFloat(std.meta.Child(@TypeOf(v
     return @floatCast(@sqrt(@reduce(.Add, d * d)));
 }
 
-/// Returns the angle between two vectors in radians, in the range [0, pi].
-/// Output type is the same as `norm`. Returns 0 if either vector is zero.
+/// Returns the angle between two vectors in turns, in the range [0, 0.5].
+/// Output type is the same as `norm`.
+/// Assumes vectors are not zero.
 pub fn angle(v: anytype, other: @TypeOf(v)) OutFloat(std.meta.Child(@TypeOf(v))) {
     const F = CalcFloat(std.meta.Child(@TypeOf(v)));
     const S = @Vector(arrayInfo(@TypeOf(v)).len, F);
@@ -160,7 +162,7 @@ pub fn angle(v: anytype, other: @TypeOf(v)) OutFloat(std.meta.Child(@TypeOf(v)))
     const nb: S = @splat(@sqrt(@reduce(.Add, b * b)));
     const x = a * nb - b * na;
     const y = a * nb + b * na;
-    return @floatCast(2 * std.math.atan2(@sqrt(@reduce(.Add, x * x)), @sqrt(@reduce(.Add, y * y))));
+    return @floatCast(2 * turn.atan2(@sqrt(@reduce(.Add, x * x)), @sqrt(@reduce(.Add, y * y))));
 }
 
 /// Returns a new vector that is the reflection of the original vector on the given normal.
@@ -262,24 +264,24 @@ test distance {
 test angle {
     const v1: [2]f32 = .{ 1, 0 };
     const v2: [2]f32 = .{ 0, 1 };
-    try std.testing.expectApproxEqAbs(@as(f32, std.math.pi / 2.0), angle(v1, v2), 0.0001);
+    try std.testing.expectApproxEqAbs(@as(f32, 0.25), angle(v1, v2), 0.0001);
 
     const v3: [2]f32 = .{ 1, 1 };
     const v4: [2]f32 = .{ -1, 1 };
-    try std.testing.expectApproxEqAbs(@as(f32, std.math.pi / 2.0), angle(v3, v4), 0.0001);
+    try std.testing.expectApproxEqAbs(@as(f32, 0.25), angle(v3, v4), 0.0001);
 
     const v5: [2]i32 = .{ 1, 0 };
     const v6: [2]i32 = .{ 0, 3 };
-    try std.testing.expectApproxEqAbs(@as(f32, std.math.pi / 2.0), angle(v5, v6), 0.0001);
+    try std.testing.expectApproxEqAbs(@as(f32, 0.25), angle(v5, v6), 0.0001);
 
     const v7: [3]f32 = .{ 0.1, 0.2, 0.3 };
     try std.testing.expectEqual(@as(f32, 0), angle(v7, v7));
-    try std.testing.expectApproxEqAbs(@as(f32, std.math.pi), angle(v7, scale(v7, -1)), 0.000001);
+    try std.testing.expectApproxEqAbs(@as(f32, 0.5), angle(v7, scale(v7, -1)), 0.000001);
     try std.testing.expectEqual(@as(f32, 0), angle(v7, .{ 0, 0, 0 }));
 
     const a: [3]f32 = .{ 1, 0, 0 };
-    try std.testing.expectApproxEqRel(@as(f32, 1e-4), angle(a, .{ 1, 1e-4, 0 }), 1e-5);
-    try std.testing.expectApproxEqRel(@as(f32, std.math.pi - 1e-4), angle(a, .{ -1, 1e-4, 0 }), 1e-6);
+    try std.testing.expectApproxEqRel(@as(f32, 1e-4 / std.math.tau), angle(a, .{ 1, 1e-4, 0 }), 1e-5);
+    try std.testing.expectApproxEqRel(@as(f32, 0.5 - 1e-4 / std.math.tau), angle(a, .{ -1, 1e-4, 0 }), 1e-6);
 }
 
 test reflect {

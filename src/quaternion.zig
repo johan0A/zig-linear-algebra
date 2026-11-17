@@ -2,6 +2,7 @@ const std = @import("std");
 const root = @import("root.zig");
 const vec = root.vec;
 const mat = root.matrix;
+const turn = root.turn;
 
 pub fn Quat(comptime T: type) type {
     return extern struct {
@@ -35,22 +36,24 @@ pub fn Quat(comptime T: type) type {
             return .{ self.v[0], self.v[1], self.v[2] };
         }
 
+        /// `angle` is in turns.
         pub fn fromAxisAngle(axis: [3]T, angle: T) Self {
             const half = angle * 0.5;
-            const s = std.math.sin(half);
+            const s = turn.sin(half);
             const a = vec.normalize(axis);
             return .{ .v = .{
                 a[0] * s,
                 a[1] * s,
                 a[2] * s,
-                std.math.cos(half),
+                turn.cos(half),
             } };
         }
 
+        /// Returned `angle` is in turns, in the range [0, 1].
         pub fn toAxisAngle(self: Self) struct { axis: [3]T, angle: T } {
             const n = self.normalize();
             const w_clamped = std.math.clamp(n.w(), @as(T, -1.0), @as(T, 1.0));
-            const angle = 2.0 * std.math.acos(w_clamped);
+            const angle = 2.0 * turn.acos(w_clamped);
             const s2 = 1.0 - w_clamped * w_clamped;
             if (s2 < 1e-8) {
                 return .{ .axis = .{ 1, 0, 0 }, .angle = angle };
@@ -62,16 +65,17 @@ pub fn Quat(comptime T: type) type {
             };
         }
 
+        /// Angles are in turns.
         pub fn fromEuler(pitch: T, yaw: T, roll: T) Self {
             const hp = pitch * 0.5;
             const hy = yaw * 0.5;
             const hr = roll * 0.5;
-            const sp = std.math.sin(hp);
-            const cp = std.math.cos(hp);
-            const sy = std.math.sin(hy);
-            const cy = std.math.cos(hy);
-            const sr = std.math.sin(hr);
-            const cr = std.math.cos(hr);
+            const sp = turn.sin(hp);
+            const cp = turn.cos(hp);
+            const sy = turn.sin(hy);
+            const cy = turn.cos(hy);
+            const sr = turn.sin(hr);
+            const cr = turn.cos(hr);
             return .{ .v = .{
                 cr * cy * sp - sr * sy * cp,
                 cr * sy * cp + sr * cy * sp,
@@ -80,6 +84,7 @@ pub fn Quat(comptime T: type) type {
             } };
         }
 
+        /// Returned angles are in turns.
         pub fn toEuler(self: Self) struct { pitch: T, yaw: T, roll: T } {
             const n = self.normalize();
             const sinp = 2.0 * (n.w() * n.y() - n.z() * n.x());
@@ -87,19 +92,19 @@ pub fn Quat(comptime T: type) type {
             if (@abs(sinp) >= 1.0 - 1e-6) {
                 const sign: T = if (sinp >= 0) 1.0 else -1.0;
                 return .{
-                    .pitch = -sign * 2.0 * std.math.atan2(n.x(), n.w()),
-                    .yaw = sign * std.math.pi / 2.0,
+                    .pitch = -sign * 2.0 * turn.atan2(n.x(), n.w()),
+                    .yaw = sign * 0.25,
                     .roll = 0,
                 };
             }
 
             return .{
-                .pitch = std.math.atan2(
+                .pitch = turn.atan2(
                     2.0 * (n.w() * n.x() + n.y() * n.z()),
                     1.0 - 2.0 * (n.x() * n.x() + n.y() * n.y()),
                 ),
-                .yaw = std.math.asin(std.math.clamp(sinp, @as(T, -1.0), @as(T, 1.0))),
-                .roll = std.math.atan2(
+                .yaw = turn.asin(std.math.clamp(sinp, @as(T, -1.0), @as(T, 1.0))),
+                .roll = turn.atan2(
                     2.0 * (n.w() * n.z() + n.x() * n.y()),
                     1.0 - 2.0 * (n.y() * n.y() + n.z() * n.z()),
                 ),
@@ -350,7 +355,7 @@ test "Quat arithmetic" {
 
 test "Quat rotateVec" {
     const Q = Quat(f32);
-    const q: Q = .fromAxisAngle(.{ 0, 0, 1 }, std.math.pi / 2.0);
+    const q: Q = .fromAxisAngle(.{ 0, 0, 1 }, 0.25);
     try expectVecApproxEql(.{ 0, 1, 0 }, q.rotateVec(.{ 1, 0, 0 }));
 
     const m = q.toMat3(.cm);
@@ -359,33 +364,33 @@ test "Quat rotateVec" {
 
 test "Quat matrix roundtrip" {
     const Q = Quat(f32);
-    const q = Q.fromAxisAngle(.{ 1, 2, 3 }, 2.5);
+    const q = Q.fromAxisAngle(.{ 1, 2, 3 }, 0.4);
     try std.testing.expect(Q.fromMat(q.toMat4(.cm)).rotationEql(q, 1e-5));
     try std.testing.expect(Q.fromMat(q.toMat3(.rm)).rotationEql(q, 1e-5));
 }
 
 test "Quat axis angle roundtrip" {
     const Q = Quat(f32);
-    const q = Q.fromAxisAngle(.{ 0, 3, 4 }, 1.2);
+    const q = Q.fromAxisAngle(.{ 0, 3, 4 }, 0.2);
     const aa = q.toAxisAngle();
-    try std.testing.expectApproxEqAbs(@as(f32, 1.2), aa.angle, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, 0.2), aa.angle, 1e-6);
     try expectVecApproxEql(.{ 0, 0.6, 0.8 }, aa.axis);
 }
 
 test "Quat euler roundtrip" {
     const Q = Quat(f32);
-    const q = Q.fromEuler(0.3, -0.7, 1.1);
+    const q = Q.fromEuler(0.05, -0.11, 0.18);
     const e = q.toEuler();
-    try std.testing.expectApproxEqAbs(@as(f32, 0.3), e.pitch, 1e-5);
-    try std.testing.expectApproxEqAbs(@as(f32, -0.7), e.yaw, 1e-5);
-    try std.testing.expectApproxEqAbs(@as(f32, 1.1), e.roll, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, 0.05), e.pitch, 1e-6);
+    try std.testing.expectApproxEqAbs(@as(f32, -0.11), e.yaw, 1e-6);
+    try std.testing.expectApproxEqAbs(@as(f32, 0.18), e.roll, 1e-6);
 }
 
 test "Quat slerp" {
     const Q = Quat(f32);
     const a: Q = .identity;
-    const b = Q.fromAxisAngle(.{ 0, 1, 0 }, 1.0);
-    try std.testing.expect(a.slerp(b, 0.5).rotationEql(.fromAxisAngle(.{ 0, 1, 0 }, 0.5), 1e-5));
+    const b = Q.fromAxisAngle(.{ 0, 1, 0 }, 0.16);
+    try std.testing.expect(a.slerp(b, 0.5).rotationEql(.fromAxisAngle(.{ 0, 1, 0 }, 0.08), 1e-5));
     try std.testing.expect(a.slerp(b, 0).rotationEql(a, 1e-5));
     try std.testing.expect(a.slerp(b, 1).rotationEql(b, 1e-5));
     try std.testing.expect(a.nlerp(b, 1).rotationEql(b, 1e-5));
