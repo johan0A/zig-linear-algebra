@@ -198,7 +198,7 @@ pub fn Mat(
             return result;
         }
 
-        pub fn mulVec(self: Self, v: @Vector(cols, T)) @Vector(rows, T) {
+        pub fn mulVec(self: Self, v: [cols]T) [rows]T {
             if (cm) {
                 var result: @Vector(rows, T) = @as(@Vector(rows, T), self.items[0]) *
                     @as(@Vector(rows, T), @splat(v[0]));
@@ -210,7 +210,7 @@ pub fn Mat(
             } else {
                 var result: [rows]T = undefined;
                 inline for (0..rows) |i| {
-                    result[i] = @reduce(.Add, @as(@Vector(cols, T), self.items[i]) * v);
+                    result[i] = vec.dot(self.items[i], v);
                 }
                 return result;
             }
@@ -336,7 +336,7 @@ pub fn Mat(
             result.put(0, 0, 2.0 / rl);
             result.put(1, 1, y_sign * 2.0 / tb);
             result.put(0, 3, -(right + left) / rl);
-            result.put(1, 3, -(top + bottom) / tb);
+            result.put(1, 3, y_sign * -(top + bottom) / tb);
             result.put(3, 3, 1.0);
 
             switch (config.clip_depth) {
@@ -353,10 +353,10 @@ pub fn Mat(
             return result;
         }
 
-        pub fn lookAt(eye: @Vector(3, T), center: @Vector(3, T), up: @Vector(3, T)) Self {
+        pub fn lookAt(eye: [3]T, center: [3]T, up: [3]T) Self {
             if (rows != 4 or cols != 4) @compileError("lookAt matrix must be 4x4");
 
-            const f = vec.normalize(center - eye);
+            const f = vec.normalize(vec.sub(center, eye));
             const s = vec.normalize(vec.cross(f, up));
             const u = vec.cross(s, f);
 
@@ -380,7 +380,7 @@ pub fn Mat(
             return result;
         }
 
-        pub fn translate(self: Self, vector: @Vector(rows - 1, T)) Self {
+        pub fn translate(self: Self, vector: [rows - 1]T) Self {
             if (rows != cols) @compileError("transform matrix must be square");
 
             var result = self;
@@ -394,11 +394,11 @@ pub fn Mat(
             return result;
         }
 
-        pub inline fn selfTranslate(self: *Self, vector: @Vector(rows - 1, T)) void {
+        pub inline fn selfTranslate(self: *Self, vector: [rows - 1]T) void {
             self.* = self.translate(vector);
         }
 
-        pub inline fn position(self: Self) @Vector(rows - 1, T) {
+        pub inline fn position(self: Self) [rows - 1]T {
             if (rows != cols) @compileError("transform matrix must be square");
             var result: [rows - 1]T = undefined;
             inline for (0..rows - 1) |r| {
@@ -407,7 +407,7 @@ pub fn Mat(
             return result;
         }
 
-        pub fn scale(self: Self, factors: @Vector(rows - 1, T)) Self {
+        pub fn scale(self: Self, factors: [rows - 1]T) Self {
             if (rows != cols) @compileError("transform matrix must be square");
 
             var result = self;
@@ -419,11 +419,11 @@ pub fn Mat(
             return result;
         }
 
-        pub inline fn selfScale(self: *Self, factors: @Vector(rows - 1, T)) void {
+        pub inline fn selfScale(self: *Self, factors: [rows - 1]T) void {
             self.* = self.scale(factors);
         }
 
-        pub fn rotate(self: Self, angle: T, axis: @Vector(3, T)) Self {
+        pub fn rotate(self: Self, angle: T, axis: [3]T) Self {
             if (rows != cols) @compileError("rotate requires a square matrix");
             if (rows < 3) @compileError("rotate requires at least 3x3");
 
@@ -446,11 +446,11 @@ pub fn Mat(
             return self.mul(rot);
         }
 
-        pub inline fn selfRotate(self: *Self, angle: T, axis: @Vector(3, T)) void {
+        pub inline fn selfRotate(self: *Self, angle: T, axis: [3]T) void {
             self.* = self.rotate(angle, axis);
         }
 
-        pub fn fromAxisAngle(axis: @Vector(3, T), angle: T) Self {
+        pub fn fromAxisAngle(axis: [3]T, angle: T) Self {
             if (rows != cols) @compileError("fromAxisAngle requires a square matrix");
             if (rows < 3) @compileError("fromAxisAngle requires at least 3x3");
 
@@ -480,7 +480,7 @@ pub fn Mat(
 
             for (0..cols) |c| {
                 for (0..rows) |r| {
-                    const len = std.fmt.count("{d}", .{self.items[c][r]});
+                    const len = std.fmt.count("{d}", .{self.at(r, c)});
                     max_widths[c] = @max(max_widths[c], len);
                 }
             }
@@ -488,11 +488,11 @@ pub fn Mat(
             for (0..rows) |r| {
                 try writer.writeAll("[");
                 for (0..cols) |c| {
-                    const len = std.fmt.count("{d}", .{self.items[c][r]});
+                    const len = std.fmt.count("{d}", .{self.at(r, c)});
                     for (0..max_widths[c] - len) |_| {
                         try writer.writeByte(' ');
                     }
-                    try writer.print("{d}", .{self.items[c][r]});
+                    try writer.print("{d}", .{self.at(r, c)});
                     if (c < cols - 1) try writer.writeAll(", ");
                 }
                 try writer.writeByte(']');
@@ -603,7 +603,53 @@ test "mulVec" {
         .{ 0, 0, 0, 1 },
     });
     const v = m.mulVec(.{ 1, 2, 3, 1 });
-    try std.testing.expectEqual(@Vector(4, f32){ 6, 8, 10, 1 }, v);
+    try std.testing.expectEqual([4]f32{ 6, 8, 10, 1 }, v);
+
+    const m_rm: Mat(.rm, f32, 4, 4) = .fromRowMajorArray(.{
+        .{ 1, 0, 0, 5 },
+        .{ 0, 1, 0, 6 },
+        .{ 0, 0, 1, 7 },
+        .{ 0, 0, 0, 1 },
+    });
+    try std.testing.expectEqual([4]f32{ 6, 8, 10, 1 }, m_rm.mulVec(.{ 1, 2, 3, 1 }));
+}
+
+test "format row major" {
+    const c: Mat(.rm, f32, 2, 3) = .fromRowMajorArray(.{
+        .{ 1, 2 },
+        .{ 30, 4 },
+        .{ 5, 60 },
+    });
+    var buff: [128]u8 = undefined;
+    const result = try std.fmt.bufPrint(&buff, "{f}", .{c});
+    try std.testing.expectEqualStrings(
+        \\[ 1,  2]
+        \\[30,  4]
+        \\[ 5, 60]
+    , result);
+}
+
+test "orthographic" {
+    const M = Mat(.cm, f32, 4, 4);
+    inline for (.{ YDirection.y_up, YDirection.y_down }) |y_dir| {
+        const m: M = .orthographic(-2, 6, 1, 5, 0.5, 10, .{ .y_direction = y_dir });
+        const top = m.mulVec(.{ 0, 5, -0.5, 1 });
+        const bottom = m.mulVec(.{ 0, 1, -10, 1 });
+        const sign: f32 = if (y_dir == .y_up) 1 else -1;
+        try std.testing.expectApproxEqAbs(sign, top[1], 1e-5);
+        try std.testing.expectApproxEqAbs(-sign, bottom[1], 1e-5);
+        try std.testing.expectApproxEqAbs(@as(f32, 0), top[2], 1e-5);
+        try std.testing.expectApproxEqAbs(@as(f32, 1), bottom[2], 1e-5);
+    }
+}
+
+test "lookAt" {
+    const M = Mat(.cm, f32, 4, 4);
+    const m: M = .lookAt(.{ 1, 2, 3 }, .{ 1, 2, 0 }, .{ 0, 1, 0 });
+    const p = m.mulVec(.{ 1, 2, 0, 1 });
+    try std.testing.expectApproxEqAbs(@as(f32, 0), p[0], 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, 0), p[1], 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, -3), p[2], 1e-5);
 }
 
 test "scale" {

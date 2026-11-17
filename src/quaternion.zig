@@ -31,11 +31,11 @@ pub fn Quat(comptime T: type) type {
             return self.v[3];
         }
 
-        pub inline fn imaginary(self: Self) @Vector(3, T) {
+        pub inline fn imaginary(self: Self) [3]T {
             return .{ self.v[0], self.v[1], self.v[2] };
         }
 
-        pub fn fromAxisAngle(axis: @Vector(3, T), angle: T) Self {
+        pub fn fromAxisAngle(axis: [3]T, angle: T) Self {
             const half = angle * 0.5;
             const s = std.math.sin(half);
             const a = vec.normalize(axis);
@@ -47,7 +47,7 @@ pub fn Quat(comptime T: type) type {
             } };
         }
 
-        pub fn toAxisAngle(self: Self) struct { axis: @Vector(3, T), angle: T } {
+        pub fn toAxisAngle(self: Self) struct { axis: [3]T, angle: T } {
             const n = self.normalize();
             const w_clamped = std.math.clamp(n.w(), @as(T, -1.0), @as(T, 1.0));
             const angle = 2.0 * std.math.acos(w_clamped);
@@ -235,15 +235,15 @@ pub fn Quat(comptime T: type) type {
         }
 
         pub fn add(self: Self, other: Self) Self {
-            return .{ .v = self.v + other.v };
+            return .{ .v = vec.add(self.v, other.v) };
         }
 
         pub fn sub(self: Self, other: Self) Self {
-            return .{ .v = self.v - other.v };
+            return .{ .v = vec.sub(self.v, other.v) };
         }
 
         pub fn scalarMul(self: Self, s: T) Self {
-            return .{ .v = self.v * @as(@Vector(4, T), @splat(s)) };
+            return .{ .v = vec.scale(self.v, s) };
         }
 
         pub fn negate(self: Self) Self {
@@ -255,7 +255,7 @@ pub fn Quat(comptime T: type) type {
         }
 
         pub fn norm2(self: Self) T {
-            return @reduce(.Add, @as(@Vector(4, T), self.v) * @as(@Vector(4, T), self.v));
+            return vec.dot(self.v, self.v);
         }
 
         pub fn norm(self: Self) T {
@@ -276,14 +276,15 @@ pub fn Quat(comptime T: type) type {
         }
 
         pub fn dot(self: Self, other: Self) T {
-            return @reduce(.Add, @as(@Vector(4, T), self.v) * @as(@Vector(4, T), other.v));
+            return vec.dot(self.v, other.v);
         }
 
-        pub fn rotateVec(self: Self, point: @Vector(3, T)) @Vector(3, T) {
+        /// Assumes the quaternion is normalized.
+        pub fn rotateVec(self: Self, point: [3]T) [3]T {
             const u = self.imaginary();
             const uv = vec.cross(u, point);
             const uuv = vec.cross(u, uv);
-            return point + vec.splat(3, 2.0 * self.w()) * uv + vec.splat(3, @as(T, 2.0)) * uuv;
+            return vec.add(point, vec.add(vec.scale(uv, 2.0 * self.w()), vec.scale(uuv, 2.0)));
         }
 
         pub fn nlerp(self: Self, other: Self, t: T) Self {
@@ -311,7 +312,7 @@ pub fn Quat(comptime T: type) type {
         }
 
         pub fn eql(self: Self, other: Self) bool {
-            return @reduce(.And, self.v == other.v);
+            return std.mem.eql(T, &self.v, &other.v);
         }
 
         pub fn approxEql(self: Self, other: Self, tolerance: T) bool {
@@ -328,4 +329,64 @@ pub fn Quat(comptime T: type) type {
             try writer.print("Quat({d}, {d}, {d}, {d})", .{ self.x(), self.y(), self.z(), self.w() });
         }
     };
+}
+
+fn expectVecApproxEql(expected: [3]f32, actual: [3]f32) !void {
+    for (expected, actual) |e, a| try std.testing.expectApproxEqAbs(e, a, 1e-5);
+}
+
+test "Quat arithmetic" {
+    const Q = Quat(f32);
+    const a: Q = .init(1, 2, 3, 4);
+    const b: Q = .init(5, 6, 7, 8);
+    try std.testing.expect(a.add(b).eql(.init(6, 8, 10, 12)));
+    try std.testing.expect(b.sub(a).eql(.init(4, 4, 4, 4)));
+    try std.testing.expect(a.scalarMul(2).eql(.init(2, 4, 6, 8)));
+    try std.testing.expect(a.negate().eql(.init(-1, -2, -3, -4)));
+    try std.testing.expectEqual(@as(f32, 70), a.dot(b));
+    try std.testing.expectEqual(@as(f32, 30), a.norm2());
+    try std.testing.expect(a.mul(a.inverse()).approxEql(.identity, 1e-6));
+}
+
+test "Quat rotateVec" {
+    const Q = Quat(f32);
+    const q: Q = .fromAxisAngle(.{ 0, 0, 1 }, std.math.pi / 2.0);
+    try expectVecApproxEql(.{ 0, 1, 0 }, q.rotateVec(.{ 1, 0, 0 }));
+
+    const m = q.toMat3(.cm);
+    try expectVecApproxEql(m.mulVec(.{ 1, 2, 3 }), q.rotateVec(.{ 1, 2, 3 }));
+}
+
+test "Quat matrix roundtrip" {
+    const Q = Quat(f32);
+    const q = Q.fromAxisAngle(.{ 1, 2, 3 }, 2.5);
+    try std.testing.expect(Q.fromMat(q.toMat4(.cm)).rotationEql(q, 1e-5));
+    try std.testing.expect(Q.fromMat(q.toMat3(.rm)).rotationEql(q, 1e-5));
+}
+
+test "Quat axis angle roundtrip" {
+    const Q = Quat(f32);
+    const q = Q.fromAxisAngle(.{ 0, 3, 4 }, 1.2);
+    const aa = q.toAxisAngle();
+    try std.testing.expectApproxEqAbs(@as(f32, 1.2), aa.angle, 1e-5);
+    try expectVecApproxEql(.{ 0, 0.6, 0.8 }, aa.axis);
+}
+
+test "Quat euler roundtrip" {
+    const Q = Quat(f32);
+    const q = Q.fromEuler(0.3, -0.7, 1.1);
+    const e = q.toEuler();
+    try std.testing.expectApproxEqAbs(@as(f32, 0.3), e.pitch, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, -0.7), e.yaw, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, 1.1), e.roll, 1e-5);
+}
+
+test "Quat slerp" {
+    const Q = Quat(f32);
+    const a: Q = .identity;
+    const b = Q.fromAxisAngle(.{ 0, 1, 0 }, 1.0);
+    try std.testing.expect(a.slerp(b, 0.5).rotationEql(.fromAxisAngle(.{ 0, 1, 0 }, 0.5), 1e-5));
+    try std.testing.expect(a.slerp(b, 0).rotationEql(a, 1e-5));
+    try std.testing.expect(a.slerp(b, 1).rotationEql(b, 1e-5));
+    try std.testing.expect(a.nlerp(b, 1).rotationEql(b, 1e-5));
 }
