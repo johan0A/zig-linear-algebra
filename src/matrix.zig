@@ -1,3 +1,7 @@
+const std = @import("std");
+const vec = @import("root.zig").vec;
+const turn = @import("root.zig").turn;
+
 pub const ClipDepth = enum {
     /// OpenGL
     negative_one_to_one,
@@ -7,63 +11,47 @@ pub const ClipDepth = enum {
 
 pub const YDirection = enum {
     /// OpenGL, DirectX
-    y_up,
+    up,
     /// Vulkan
-    y_down,
+    down,
 };
 
 pub const Layout = enum {
-    /// column major
-    ///
-    /// items[col][row] OpenGL/Vulkan/GLM
+    /// Column major, `items[column][row]`. OpenGL, Vulkan, GLM.
     cm,
-    /// row major
-    ///
-    /// items[row][col] DirectX
+    /// Row major, `items[row][column]`. DirectX.
     rm,
 };
 
 pub const Config = struct {
     clip_depth: ClipDepth = .zero_to_one,
-    y_direction: YDirection = .y_down,
+    y_direction: YDirection = .down,
 };
 
 pub fn Mat(
     comptime layout: Layout,
     comptime T: type,
-    comptime cols_: usize,
-    comptime rows_: usize,
+    comptime column_count_: usize,
+    comptime row_count_: usize,
 ) type {
     const cm = layout == .cm;
 
     return extern struct {
         const Self = @This();
 
-        pub const rows: comptime_int = rows_;
-        pub const cols: comptime_int = cols_;
-        pub const Type: type = T;
+        items: [major_count][minor_count]T,
 
-        pub const n_major: comptime_int = if (cm) cols else rows;
-        pub const n_minor: comptime_int = if (cm) rows else cols;
+        pub const row_count: comptime_int = row_count_;
+        pub const column_count: comptime_int = column_count_;
+        pub const Element: type = T;
 
-        items: [n_major][n_minor]T,
-
-        pub inline fn at(self: Self, r: usize, c: usize) T {
-            return if (cm) self.items[c][r] else self.items[r][c];
-        }
-
-        pub inline fn put(self: *Self, r: usize, c: usize, val: T) void {
-            if (cm) {
-                self.items[c][r] = val;
-            } else {
-                self.items[r][c] = val;
-            }
-        }
+        pub const major_count: comptime_int = if (cm) column_count else row_count;
+        pub const minor_count: comptime_int = if (cm) row_count else column_count;
 
         pub const identity: Self = blk: {
-            if (rows != cols) @compileError("identity matrix must be square");
+            if (row_count != column_count) @compileError("identity matrix must be square");
             var result: Self = .zero;
-            for (0..rows) |i| {
+            for (0..row_count) |i| {
                 result.items[i][i] = 1;
             }
             break :blk result;
@@ -71,14 +59,25 @@ pub fn Mat(
 
         pub const zero: Self = .{ .items = @splat(@splat(0)) };
 
-        /// Import from a column-major [cols][rows] array.
-        pub inline fn fromColumnMajorArray(values: [cols][rows]T) Self {
+        pub inline fn at(self: Self, row_index: usize, column_index: usize) T {
+            return if (cm) self.items[column_index][row_index] else self.items[row_index][column_index];
+        }
+
+        pub inline fn put(self: *Self, row_index: usize, column_index: usize, value: T) void {
+            if (cm) {
+                self.items[column_index][row_index] = value;
+            } else {
+                self.items[row_index][column_index] = value;
+            }
+        }
+
+        pub inline fn fromColumnMajorArray(values: [column_count][row_count]T) Self {
             if (cm) {
                 return .{ .items = values };
             } else {
                 var result: Self = undefined;
-                for (0..cols) |c| {
-                    for (0..rows) |r| {
+                for (0..column_count) |c| {
+                    for (0..row_count) |r| {
                         result.items[r][c] = values[c][r];
                     }
                 }
@@ -86,12 +85,11 @@ pub fn Mat(
             }
         }
 
-        /// Import from a row-major [rows][cols] array.
-        pub inline fn fromRowMajorArray(values: [rows][cols]T) Self {
+        pub inline fn fromRowMajorArray(values: [row_count][column_count]T) Self {
             if (cm) {
                 var result: Self = undefined;
-                for (0..rows) |r| {
-                    for (0..cols) |c| {
+                for (0..row_count) |r| {
+                    for (0..column_count) |c| {
                         result.items[c][r] = values[r][c];
                     }
                 }
@@ -101,10 +99,10 @@ pub fn Mat(
             }
         }
 
-        pub fn transpose(self: Self) Mat(layout, T, rows, cols) {
-            var result: Mat(layout, T, rows, cols) = undefined;
-            for (0..cols) |c| {
-                for (0..rows) |r| {
+        pub fn transpose(self: Self) Mat(layout, T, row_count, column_count) {
+            var result: Mat(layout, T, row_count, column_count) = undefined;
+            for (0..column_count) |c| {
+                for (0..row_count) |r| {
                     result.put(c, r, self.at(r, c));
                 }
             }
@@ -113,26 +111,26 @@ pub fn Mat(
 
         pub fn scalarMul(self: Self, scalar: T) Self {
             var result: Self = undefined;
-            for (0..n_major) |i| {
-                const s: @Vector(n_minor, T) = self.items[i];
-                result.items[i] = s * @as(@Vector(n_minor, T), @splat(scalar));
+            for (0..major_count) |i| {
+                const s: @Vector(minor_count, T) = self.items[i];
+                result.items[i] = s * @as(@Vector(minor_count, T), @splat(scalar));
             }
             return result;
         }
 
         pub fn scalarDiv(self: Self, scalar: T) Self {
             var result: Self = undefined;
-            for (0..n_major) |i| {
-                const s: @Vector(n_minor, T) = self.items[i];
-                result.items[i] = s / @as(@Vector(n_minor, T), @splat(scalar));
+            for (0..major_count) |i| {
+                const s: @Vector(minor_count, T) = self.items[i];
+                result.items[i] = s / @as(@Vector(minor_count, T), @splat(scalar));
             }
             return result;
         }
 
         pub fn negate(self: Self) Self {
             var result: Self = undefined;
-            for (0..n_major) |i| {
-                const s: @Vector(n_minor, T) = self.items[i];
+            for (0..major_count) |i| {
+                const s: @Vector(minor_count, T) = self.items[i];
                 result.items[i] = -s;
             }
             return result;
@@ -140,9 +138,9 @@ pub fn Mat(
 
         pub fn add(self: Self, other: Self) Self {
             var result: Self = undefined;
-            for (0..n_major) |i| {
-                const a: @Vector(n_minor, T) = self.items[i];
-                const b: @Vector(n_minor, T) = other.items[i];
+            for (0..major_count) |i| {
+                const a: @Vector(minor_count, T) = self.items[i];
+                const b: @Vector(minor_count, T) = other.items[i];
                 result.items[i] = a + b;
             }
             return result;
@@ -150,9 +148,9 @@ pub fn Mat(
 
         pub fn sub(self: Self, other: Self) Self {
             var result: Self = undefined;
-            for (0..n_major) |i| {
-                const a: @Vector(n_minor, T) = self.items[i];
-                const b: @Vector(n_minor, T) = other.items[i];
+            for (0..major_count) |i| {
+                const a: @Vector(minor_count, T) = self.items[i];
+                const b: @Vector(minor_count, T) = other.items[i];
                 result.items[i] = a - b;
             }
             return result;
@@ -166,31 +164,31 @@ pub fn Mat(
             self.* = self.sub(other);
         }
 
-        pub fn mul(self: Self, other: anytype) Mat(layout, T, @TypeOf(other).cols, Self.rows) {
+        pub fn mul(self: Self, other: anytype) Mat(layout, T, @TypeOf(other).column_count, Self.row_count) {
             const Other = @TypeOf(other);
-            if (Self.cols != Other.rows) @compileError("column count of lhs must equal row count of rhs");
-            if (Self.Type != Other.Type) @compileError("element types must match");
+            if (Self.column_count != Other.row_count) @compileError("column count of lhs must equal row count of rhs");
+            if (Self.Element != Other.Element) @compileError("element types must match");
 
-            const Result = Mat(layout, T, Other.cols, Self.rows);
+            const Result = Mat(layout, T, Other.column_count, Self.row_count);
             var result: Result = undefined;
 
             if (cm) {
-                for (0..Result.cols) |i| {
-                    var strip: @Vector(Self.rows, T) = @as(@Vector(Self.rows, T), self.items[0]) *
-                        @as(@Vector(Self.rows, T), @splat(other.items[i][0]));
-                    for (1..Self.cols) |j| {
-                        strip += @as(@Vector(Self.rows, T), self.items[j]) *
-                            @as(@Vector(Self.rows, T), @splat(other.items[i][j]));
+                for (0..Result.column_count) |i| {
+                    var strip: @Vector(Self.row_count, T) = @as(@Vector(Self.row_count, T), self.items[0]) *
+                        @as(@Vector(Self.row_count, T), @splat(other.items[i][0]));
+                    for (1..Self.column_count) |j| {
+                        strip += @as(@Vector(Self.row_count, T), self.items[j]) *
+                            @as(@Vector(Self.row_count, T), @splat(other.items[i][j]));
                     }
                     result.items[i] = strip;
                 }
             } else {
-                for (0..Result.rows) |i| {
-                    var strip: @Vector(Other.cols, T) = @as(@Vector(Other.cols, T), other.items[0]) *
-                        @as(@Vector(Other.cols, T), @splat(self.items[i][0]));
-                    for (1..Self.cols) |k| {
-                        strip += @as(@Vector(Other.cols, T), other.items[k]) *
-                            @as(@Vector(Other.cols, T), @splat(self.items[i][k]));
+                for (0..Result.row_count) |i| {
+                    var strip: @Vector(Other.column_count, T) = @as(@Vector(Other.column_count, T), other.items[0]) *
+                        @as(@Vector(Other.column_count, T), @splat(self.items[i][0]));
+                    for (1..Self.column_count) |k| {
+                        strip += @as(@Vector(Other.column_count, T), other.items[k]) *
+                            @as(@Vector(Other.column_count, T), @splat(self.items[i][k]));
                     }
                     result.items[i] = strip;
                 }
@@ -198,18 +196,18 @@ pub fn Mat(
             return result;
         }
 
-        pub fn mulVec(self: Self, v: [cols]T) [rows]T {
+        pub fn mulVec(self: Self, v: [column_count]T) [row_count]T {
             if (cm) {
-                var result: @Vector(rows, T) = @as(@Vector(rows, T), self.items[0]) *
-                    @as(@Vector(rows, T), @splat(v[0]));
-                inline for (1..cols) |j| {
-                    result += @as(@Vector(rows, T), self.items[j]) *
-                        @as(@Vector(rows, T), @splat(v[j]));
+                var result: @Vector(row_count, T) = @as(@Vector(row_count, T), self.items[0]) *
+                    @as(@Vector(row_count, T), @splat(v[0]));
+                inline for (1..column_count) |j| {
+                    result += @as(@Vector(row_count, T), self.items[j]) *
+                        @as(@Vector(row_count, T), @splat(v[j]));
                 }
                 return result;
             } else {
-                var result: [rows]T = undefined;
-                inline for (0..rows) |i| {
+                var result: [row_count]T = undefined;
+                inline for (0..row_count) |i| {
                     result[i] = vec.dot(self.items[i], v);
                 }
                 return result;
@@ -221,36 +219,40 @@ pub fn Mat(
         }
 
         pub fn determinant(self: Self) T {
-            if (rows != cols) @compileError("determinant requires a square matrix");
-            return cofactorDet(rows, self.items);
+            if (row_count != column_count) @compileError("determinant requires a square matrix");
+            return cofactorDeterminant(row_count, self.items);
         }
 
         pub fn inverse(self: Self) ?Self {
-            if (rows != cols) @compileError("inverse requires a square matrix");
+            if (row_count != column_count) @compileError("inverse requires a square matrix");
 
             const d = self.determinant();
             if (d == 0) return null;
-            const inv_det = 1.0 / d;
+            const determinant_inverse = 1.0 / d;
 
             var result: Self = undefined;
-            inline for (0..rows) |r| {
-                inline for (0..cols) |c| {
+            inline for (0..row_count) |r| {
+                inline for (0..column_count) |c| {
                     const sign: T = if ((c + r) % 2 == 0) 1 else -1;
-                    const minor = logicalSubmatrix(rows, self.items, c, r);
-                    result.put(r, c, sign * cofactorDet(rows - 1, minor) * inv_det);
+                    // adjugate is the transposed cofactor matrix, so skip row c and column r
+                    const minor = if (cm)
+                        rawSubmatrix(row_count, self.items, r, c)
+                    else
+                        rawSubmatrix(row_count, self.items, c, r);
+                    result.put(r, c, sign * cofactorDeterminant(row_count - 1, minor) * determinant_inverse);
                 }
             }
             return result;
         }
 
-        fn cofactorDet(comptime n: usize, items: [n][n]T) T {
+        fn cofactorDeterminant(comptime n: usize, items: [n][n]T) T {
             if (n == 0) @compileError("matrix dimensions must be > 0");
             if (n == 1) return items[0][0];
 
             var result: T = 0;
-            inline for (0..n) |col| {
-                const sign: T = if (col % 2 == 0) 1 else -1;
-                result += sign * items[col][0] * cofactorDet(n - 1, rawSubmatrix(n, items, col, 0));
+            inline for (0..n) |i| {
+                const sign: T = if (i % 2 == 0) 1 else -1;
+                result += sign * items[i][0] * cofactorDeterminant(n - 1, rawSubmatrix(n, items, i, 0));
             }
             return result;
         }
@@ -272,24 +274,12 @@ pub fn Mat(
             return result;
         }
 
-        fn logicalSubmatrix(
-            comptime n: usize,
-            items: [n][n]T,
-            comptime skip_row: usize,
-            comptime skip_col: usize,
-        ) [n - 1][n - 1]T {
-            return switch (cm) {
-                true => rawSubmatrix(n, items, skip_col, skip_row),
-                false => rawSubmatrix(n, items, skip_row, skip_col),
-            };
-        }
+        /// `fov_y_turns` is the vertical field of view.
+        pub fn perspective(fov_y_turns: T, aspect: T, near: T, far: T, config: Config) Self {
+            if (row_count != 4 or column_count != 4) @compileError("perspective matrix must be 4x4");
 
-        /// `fovy` is the vertical field of view in turns.
-        pub fn perspective(fovy: T, aspect: T, near: T, far: T, config: Config) Self {
-            if (rows != 4 or cols != 4) @compileError("perspective matrix must be 4x4");
-
-            const f = 1.0 / turn.tan(fovy / 2.0);
-            const y_sign: T = if (config.y_direction == .y_down) -1.0 else 1.0;
+            const f = 1.0 / turn.tan(fov_y_turns / 2.0);
+            const y_sign: T = if (config.y_direction == .down) -1.0 else 1.0;
 
             var result: Self = .zero;
             result.put(0, 0, f / aspect);
@@ -310,13 +300,14 @@ pub fn Mat(
             return result;
         }
 
-        /// `fovy` is the vertical field of view in turns.
-        pub fn perspectiveReverseZ(fovy: T, aspect: T, near: T, config: Config) Self {
-            if (rows != 4 or cols != 4) @compileError("perspective matrix must be 4x4");
-            std.debug.assert(config.clip_depth == .zero_to_one); // reverse-Z requires zero_to_one clip depth
+        /// `fov_y_turns` is the vertical field of view.
+        /// Assert `config.clip_depth` is `.zero_to_one`.
+        pub fn perspectiveReverseZ(fov_y_turns: T, aspect: T, near: T, config: Config) Self {
+            if (row_count != 4 or column_count != 4) @compileError("perspective matrix must be 4x4");
+            std.debug.assert(config.clip_depth == .zero_to_one);
 
-            const f = 1.0 / turn.tan(fovy / 2.0);
-            const y_sign: T = if (config.y_direction == .y_down) -1.0 else 1.0;
+            const f = 1.0 / turn.tan(fov_y_turns / 2.0);
+            const y_sign: T = if (config.y_direction == .down) -1.0 else 1.0;
 
             var result: Self = .zero;
             result.put(0, 0, f / aspect);
@@ -327,28 +318,28 @@ pub fn Mat(
         }
 
         pub fn orthographic(left: T, right: T, bottom: T, top: T, near: T, far: T, config: Config) Self {
-            if (rows != 4 or cols != 4) @compileError("orthographic matrix must be 4x4");
+            if (row_count != 4 or column_count != 4) @compileError("orthographic matrix must be 4x4");
 
-            const y_sign: T = if (config.y_direction == .y_down) -1.0 else 1.0;
-            const rl = right - left;
-            const tb = top - bottom;
-            const fn_ = far - near;
+            const y_sign: T = if (config.y_direction == .down) -1.0 else 1.0;
+            const width = right - left;
+            const height = top - bottom;
+            const depth = far - near;
 
             var result: Self = .zero;
-            result.put(0, 0, 2.0 / rl);
-            result.put(1, 1, y_sign * 2.0 / tb);
-            result.put(0, 3, -(right + left) / rl);
-            result.put(1, 3, y_sign * -(top + bottom) / tb);
+            result.put(0, 0, 2.0 / width);
+            result.put(1, 1, y_sign * 2.0 / height);
+            result.put(0, 3, -(right + left) / width);
+            result.put(1, 3, y_sign * -(top + bottom) / height);
             result.put(3, 3, 1.0);
 
             switch (config.clip_depth) {
                 .zero_to_one => {
-                    result.put(2, 2, -1.0 / fn_);
-                    result.put(2, 3, -near / fn_);
+                    result.put(2, 2, -1.0 / depth);
+                    result.put(2, 3, -near / depth);
                 },
                 .negative_one_to_one => {
-                    result.put(2, 2, -2.0 / fn_);
-                    result.put(2, 3, -(far + near) / fn_);
+                    result.put(2, 2, -2.0 / depth);
+                    result.put(2, 3, -(far + near) / depth);
                 },
             }
 
@@ -356,114 +347,112 @@ pub fn Mat(
         }
 
         pub fn lookAt(eye: [3]T, center: [3]T, up: [3]T) Self {
-            if (rows != 4 or cols != 4) @compileError("lookAt matrix must be 4x4");
+            if (row_count != 4 or column_count != 4) @compileError("lookAt matrix must be 4x4");
 
-            const f = vec.normalize(vec.sub(center, eye));
-            const s = vec.normalize(vec.cross(f, up));
-            const u = vec.cross(s, f);
+            const forward = vec.normalize(vec.sub(center, eye));
+            const right = vec.normalize(vec.cross(forward, up));
+            const camera_up = vec.cross(right, forward);
 
             var result: Self = .identity;
-            result.put(0, 0, s[0]);
-            result.put(0, 1, s[1]);
-            result.put(0, 2, s[2]);
+            result.put(0, 0, right[0]);
+            result.put(0, 1, right[1]);
+            result.put(0, 2, right[2]);
 
-            result.put(1, 0, u[0]);
-            result.put(1, 1, u[1]);
-            result.put(1, 2, u[2]);
+            result.put(1, 0, camera_up[0]);
+            result.put(1, 1, camera_up[1]);
+            result.put(1, 2, camera_up[2]);
 
-            result.put(2, 0, -f[0]);
-            result.put(2, 1, -f[1]);
-            result.put(2, 2, -f[2]);
+            result.put(2, 0, -forward[0]);
+            result.put(2, 1, -forward[1]);
+            result.put(2, 2, -forward[2]);
 
-            result.put(0, 3, -vec.dot(s, eye));
-            result.put(1, 3, -vec.dot(u, eye));
-            result.put(2, 3, vec.dot(f, eye));
+            result.put(0, 3, -vec.dot(right, eye));
+            result.put(1, 3, -vec.dot(camera_up, eye));
+            result.put(2, 3, vec.dot(forward, eye));
 
             return result;
         }
 
-        pub fn translate(self: Self, vector: [rows - 1]T) Self {
-            if (rows != cols) @compileError("transform matrix must be square");
+        pub fn translate(self: Self, offset: [row_count - 1]T) Self {
+            if (row_count != column_count) @compileError("transform matrix must be square");
 
             var result = self;
-            inline for (0..rows) |r| {
-                var sum: T = self.at(r, cols - 1);
-                inline for (0..rows - 1) |i| {
-                    sum += self.at(r, i) * vector[i];
+            inline for (0..row_count) |r| {
+                var sum: T = self.at(r, column_count - 1);
+                inline for (0..row_count - 1) |i| {
+                    sum += self.at(r, i) * offset[i];
                 }
-                result.put(r, cols - 1, sum);
+                result.put(r, column_count - 1, sum);
             }
             return result;
         }
 
-        pub inline fn selfTranslate(self: *Self, vector: [rows - 1]T) void {
-            self.* = self.translate(vector);
+        pub inline fn selfTranslate(self: *Self, offset: [row_count - 1]T) void {
+            self.* = self.translate(offset);
         }
 
-        pub inline fn position(self: Self) [rows - 1]T {
-            if (rows != cols) @compileError("transform matrix must be square");
-            var result: [rows - 1]T = undefined;
-            inline for (0..rows - 1) |r| {
-                result[r] = self.at(r, cols - 1);
+        pub inline fn position(self: Self) [row_count - 1]T {
+            if (row_count != column_count) @compileError("transform matrix must be square");
+            var result: [row_count - 1]T = undefined;
+            inline for (0..row_count - 1) |r| {
+                result[r] = self.at(r, column_count - 1);
             }
             return result;
         }
 
-        pub fn scale(self: Self, factors: [rows - 1]T) Self {
-            if (rows != cols) @compileError("transform matrix must be square");
+        pub fn scale(self: Self, factors: [row_count - 1]T) Self {
+            if (row_count != column_count) @compileError("transform matrix must be square");
 
             var result = self;
-            inline for (0..rows - 1) |i| {
-                inline for (0..rows) |r| {
+            inline for (0..row_count - 1) |i| {
+                inline for (0..row_count) |r| {
                     result.put(r, i, self.at(r, i) * factors[i]);
                 }
             }
             return result;
         }
 
-        pub inline fn selfScale(self: *Self, factors: [rows - 1]T) void {
+        pub inline fn selfScale(self: *Self, factors: [row_count - 1]T) void {
             self.* = self.scale(factors);
         }
 
-        /// `angle` is in turns.
-        pub fn rotate(self: Self, angle: T, axis: [3]T) Self {
-            if (rows != cols) @compileError("rotate requires a square matrix");
-            if (rows < 3) @compileError("rotate requires at least 3x3");
+        pub fn rotate(self: Self, angle_turns: T, axis: [3]T) Self {
+            if (row_count != column_count) @compileError("rotate requires a square matrix");
+            if (row_count < 3) @compileError("rotate requires at least 3x3");
 
             const a = vec.normalize(axis);
-            const co = turn.cos(angle);
-            const s = turn.sin(angle);
-            const t = 1.0 - co;
+            const cos = turn.cos(angle_turns);
+            const sin = turn.sin(angle_turns);
+            const t = 1.0 - cos;
 
-            var rot: Self = .identity;
-            rot.put(0, 0, t * a[0] * a[0] + co);
-            rot.put(1, 0, t * a[0] * a[1] + s * a[2]);
-            rot.put(2, 0, t * a[0] * a[2] - s * a[1]);
-            rot.put(0, 1, t * a[0] * a[1] - s * a[2]);
-            rot.put(1, 1, t * a[1] * a[1] + co);
-            rot.put(2, 1, t * a[1] * a[2] + s * a[0]);
-            rot.put(0, 2, t * a[0] * a[2] + s * a[1]);
-            rot.put(1, 2, t * a[1] * a[2] - s * a[0]);
-            rot.put(2, 2, t * a[2] * a[2] + co);
+            var rotation: Self = .identity;
+            rotation.put(0, 0, t * a[0] * a[0] + cos);
+            rotation.put(1, 0, t * a[0] * a[1] + sin * a[2]);
+            rotation.put(2, 0, t * a[0] * a[2] - sin * a[1]);
+            rotation.put(0, 1, t * a[0] * a[1] - sin * a[2]);
+            rotation.put(1, 1, t * a[1] * a[1] + cos);
+            rotation.put(2, 1, t * a[1] * a[2] + sin * a[0]);
+            rotation.put(0, 2, t * a[0] * a[2] + sin * a[1]);
+            rotation.put(1, 2, t * a[1] * a[2] - sin * a[0]);
+            rotation.put(2, 2, t * a[2] * a[2] + cos);
 
-            return self.mul(rot);
+            return self.mul(rotation);
         }
 
-        pub inline fn selfRotate(self: *Self, angle: T, axis: [3]T) void {
-            self.* = self.rotate(angle, axis);
+        pub inline fn selfRotate(self: *Self, angle_turns: T, axis: [3]T) void {
+            self.* = self.rotate(angle_turns, axis);
         }
 
-        /// `angle` is in turns.
-        pub fn fromAxisAngle(axis: [3]T, angle: T) Self {
-            if (rows != cols) @compileError("fromAxisAngle requires a square matrix");
-            if (rows < 3) @compileError("fromAxisAngle requires at least 3x3");
+        pub fn fromAxisAngle(axis: [3]T, angle_turns: T) Self {
+            if (row_count != column_count) @compileError("fromAxisAngle requires a square matrix");
+            if (row_count < 3) @compileError("fromAxisAngle requires at least 3x3");
 
-            return Self.identity.rotate(angle, axis);
+            return Self.identity.rotate(angle_turns, axis);
         }
 
         pub fn eql(self: Self, other: Self) bool {
-            for (0..n_major) |i| {
-                for (0..n_minor) |j| {
+            for (0..major_count) |i| {
+                for (0..minor_count) |j| {
                     if (self.items[i][j] != other.items[i][j]) return false;
                 }
             }
@@ -471,36 +460,32 @@ pub fn Mat(
         }
 
         pub fn approxEql(self: Self, other: Self, tolerance: T) bool {
-            for (0..n_major) |i| {
-                for (0..n_minor) |j| {
+            for (0..major_count) |i| {
+                for (0..minor_count) |j| {
                     if (@abs(self.items[i][j] - other.items[i][j]) > tolerance) return false;
                 }
             }
             return true;
         }
 
-        pub fn format(self: @This(), writer: *std.Io.Writer) std.Io.Writer.Error!void {
-            var max_widths: [cols]usize = @splat(0);
-
-            for (0..cols) |c| {
-                for (0..rows) |r| {
-                    const len = std.fmt.count("{d}", .{self.at(r, c)});
-                    max_widths[c] = @max(max_widths[c], len);
+        pub fn format(self: Self, writer: *std.Io.Writer) std.Io.Writer.Error!void {
+            var widths_max: [column_count]usize = @splat(0);
+            for (0..column_count) |c| {
+                for (0..row_count) |r| {
+                    widths_max[c] = @max(widths_max[c], std.fmt.count("{d}", .{self.at(r, c)}));
                 }
             }
 
-            for (0..rows) |r| {
+            for (0..row_count) |r| {
                 try writer.writeAll("[");
-                for (0..cols) |c| {
-                    const len = std.fmt.count("{d}", .{self.at(r, c)});
-                    for (0..max_widths[c] - len) |_| {
-                        try writer.writeByte(' ');
-                    }
+                for (0..column_count) |c| {
+                    const width = std.fmt.count("{d}", .{self.at(r, c)});
+                    try writer.splatByteAll(' ', widths_max[c] - width);
                     try writer.print("{d}", .{self.at(r, c)});
-                    if (c < cols - 1) try writer.writeAll(", ");
+                    if (c < column_count - 1) try writer.writeAll(", ");
                 }
                 try writer.writeByte(']');
-                if (r != rows - 1) try writer.writeByte('\n');
+                if (r != row_count - 1) try writer.writeByte('\n');
             }
         }
     };
@@ -512,8 +497,8 @@ test "format" {
         .{ 19, 26, 33 },
         .{ 29, 40, 51 },
     });
-    var buff: [128]u8 = undefined;
-    const result = try std.fmt.bufPrint(&buff, "{f}", .{c});
+    var buffer: [128]u8 = undefined;
+    const result = try std.fmt.bufPrint(&buffer, "{f}", .{c});
     try std.testing.expectEqualStrings(
         \\[ 9, 12, 15]
         \\[19, 26, 33]
@@ -533,8 +518,8 @@ test "translate" {
 }
 
 test "translate with rotation" {
-    const rot: Mat(.cm, f32, 4, 4) = .fromAxisAngle(.{ 0, 0, 1 }, 0.25);
-    const translated = rot.translate(.{ 1, 0, 0 });
+    const rotation: Mat(.cm, f32, 4, 4) = .fromAxisAngle(.{ 0, 0, 1 }, 0.25);
+    const translated = rotation.translate(.{ 1, 0, 0 });
 
     try std.testing.expectApproxEqAbs(@as(f32, 0), translated.position()[0], 1e-5);
     try std.testing.expectApproxEqAbs(@as(f32, 1), translated.position()[1], 1e-5);
@@ -624,8 +609,8 @@ test "format row major" {
         .{ 30, 4 },
         .{ 5, 60 },
     });
-    var buff: [128]u8 = undefined;
-    const result = try std.fmt.bufPrint(&buff, "{f}", .{c});
+    var buffer: [128]u8 = undefined;
+    const result = try std.fmt.bufPrint(&buffer, "{f}", .{c});
     try std.testing.expectEqualStrings(
         \\[ 1,  2]
         \\[30,  4]
@@ -635,11 +620,11 @@ test "format row major" {
 
 test "orthographic" {
     const M = Mat(.cm, f32, 4, 4);
-    inline for (.{ YDirection.y_up, YDirection.y_down }) |y_dir| {
-        const m: M = .orthographic(-2, 6, 1, 5, 0.5, 10, .{ .y_direction = y_dir });
+    inline for (.{ YDirection.up, YDirection.down }) |y_direction| {
+        const m: M = .orthographic(-2, 6, 1, 5, 0.5, 10, .{ .y_direction = y_direction });
         const top = m.mulVec(.{ 0, 5, -0.5, 1 });
         const bottom = m.mulVec(.{ 0, 1, -10, 1 });
-        const sign: f32 = if (y_dir == .y_up) 1 else -1;
+        const sign: f32 = if (y_direction == .up) 1 else -1;
         try std.testing.expectApproxEqAbs(sign, top[1], 1e-5);
         try std.testing.expectApproxEqAbs(-sign, bottom[1], 1e-5);
         try std.testing.expectApproxEqAbs(@as(f32, 0), top[2], 1e-5);
@@ -658,7 +643,7 @@ test "lookAt" {
 
 test "scale" {
     {
-        const mat: Mat(.cm, f32, 4, 4) = .fromRowMajorArray(.{
+        const m: Mat(.cm, f32, 4, 4) = .fromRowMajorArray(.{
             .{ 1, 0, 0, 5 },
             .{ 0, 1, 0, 6 },
             .{ 0, 0, 1, 7 },
@@ -670,11 +655,11 @@ test "scale" {
             .{ 0, 0, 4, 7 },
             .{ 0, 0, 0, 1 },
         });
-        try std.testing.expectEqual(expected, mat.scale(.{ 2, 3, 4 }));
+        try std.testing.expectEqual(expected, m.scale(.{ 2, 3, 4 }));
     }
 
     {
-        const mat: Mat(.cm, f32, 3, 3) = .fromRowMajorArray(.{
+        const m: Mat(.cm, f32, 3, 3) = .fromRowMajorArray(.{
             .{ 0.707, -0.707, 0 },
             .{ 0.707, 0.707, 0 },
             .{ 0, 0, 1 },
@@ -684,13 +669,7 @@ test "scale" {
             .{ 1.414, 2.121, 0 },
             .{ 0, 0, 1 },
         });
-
-        const scaled = mat.scale(.{ 2, 3 });
-        for (0..3) |c| {
-            for (0..3) |r| {
-                try std.testing.expectApproxEqAbs(expected.items[c][r], scaled.items[c][r], 0.001);
-            }
-        }
+        try std.testing.expect(m.scale(.{ 2, 3 }).approxEql(expected, 0.001));
     }
 }
 
@@ -704,24 +683,13 @@ test "determinant" {
 }
 
 test "inverse 4x4" {
-    const m: Mat(.cm, f32, 4, 4) = .fromRowMajorArray(.{
+    const M = Mat(.cm, f32, 4, 4);
+    const m: M = .fromRowMajorArray(.{
         .{ 1, 0, 0, 3 },
         .{ 0, 2, 0, 0 },
         .{ 0, 0, 1, -1 },
         .{ 0, 0, 0, 1 },
     });
-    const inv = m.inverse() orelse return error.Singular;
-    const product = m.mul(inv);
-
-    for (0..4) |c| {
-        for (0..4) |r| {
-            const expected: f32 = if (r == c) 1.0 else 0.0;
-            try std.testing.expectApproxEqAbs(expected, product.items[c][r], 1e-5);
-        }
-    }
+    const inverse = m.inverse() orelse return error.Singular;
+    try std.testing.expect(m.mul(inverse).approxEql(M.identity, 1e-5));
 }
-
-const std = @import("std");
-const vec = @import("root.zig").vec;
-const turn = @import("root.zig").turn;
-const matrix = @This();

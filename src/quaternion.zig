@@ -1,8 +1,7 @@
 const std = @import("std");
-const root = @import("root.zig");
-const vec = root.vec;
-const mat = root.matrix;
-const turn = root.turn;
+const vec = @import("root.zig").vec;
+const matrix = @import("root.zig").matrix;
+const turn = @import("root.zig").turn;
 
 pub fn Quat(comptime T: type) type {
     return extern struct {
@@ -36,9 +35,8 @@ pub fn Quat(comptime T: type) type {
             return .{ self.v[0], self.v[1], self.v[2] };
         }
 
-        /// `angle` is in turns.
-        pub fn fromAxisAngle(axis: [3]T, angle: T) Self {
-            const half = angle * 0.5;
+        pub fn fromAxisAngle(axis: [3]T, angle_turns: T) Self {
+            const half = angle_turns * 0.5;
             const s = turn.sin(half);
             const a = vec.normalize(axis);
             return .{ .v = .{
@@ -49,27 +47,26 @@ pub fn Quat(comptime T: type) type {
             } };
         }
 
-        /// Returned `angle` is in turns, in the range [0, 1].
-        pub fn toAxisAngle(self: Self) struct { axis: [3]T, angle: T } {
+        /// Returned angle is in the range [0, 1].
+        pub fn axisAngle(self: Self) struct { axis: [3]T, angle_turns: T } {
             const n = self.normalize();
             const w_clamped = std.math.clamp(n.w(), @as(T, -1.0), @as(T, 1.0));
-            const angle = 2.0 * turn.acos(w_clamped);
-            const s2 = 1.0 - w_clamped * w_clamped;
-            if (s2 < 1e-8) {
-                return .{ .axis = .{ 1, 0, 0 }, .angle = angle };
+            const angle_turns = 2.0 * turn.acos(w_clamped);
+            const sin_half_squared = 1.0 - w_clamped * w_clamped;
+            if (sin_half_squared < 1e-8) {
+                return .{ .axis = .{ 1, 0, 0 }, .angle_turns = angle_turns };
             }
-            const inv_s: T = 1.0 / std.math.sqrt(s2);
+            const sin_half_inverse: T = 1.0 / std.math.sqrt(sin_half_squared);
             return .{
-                .axis = .{ n.x() * inv_s, n.y() * inv_s, n.z() * inv_s },
-                .angle = angle,
+                .axis = .{ n.x() * sin_half_inverse, n.y() * sin_half_inverse, n.z() * sin_half_inverse },
+                .angle_turns = angle_turns,
             };
         }
 
-        /// Angles are in turns.
-        pub fn fromEuler(pitch: T, yaw: T, roll: T) Self {
-            const hp = pitch * 0.5;
-            const hy = yaw * 0.5;
-            const hr = roll * 0.5;
+        pub fn fromEuler(pitch_turns: T, yaw_turns: T, roll_turns: T) Self {
+            const hp = pitch_turns * 0.5;
+            const hy = yaw_turns * 0.5;
+            const hr = roll_turns * 0.5;
             const sp = turn.sin(hp);
             const cp = turn.cos(hp);
             const sy = turn.sin(hy);
@@ -84,27 +81,27 @@ pub fn Quat(comptime T: type) type {
             } };
         }
 
-        /// Returned angles are in turns.
-        pub fn toEuler(self: Self) struct { pitch: T, yaw: T, roll: T } {
+        pub fn euler(self: Self) struct { pitch_turns: T, yaw_turns: T, roll_turns: T } {
             const n = self.normalize();
-            const sinp = 2.0 * (n.w() * n.y() - n.z() * n.x());
+            const sin_yaw = 2.0 * (n.w() * n.y() - n.z() * n.x());
 
-            if (@abs(sinp) >= 1.0 - 1e-6) {
-                const sign: T = if (sinp >= 0) 1.0 else -1.0;
+            // gimbal lock
+            if (@abs(sin_yaw) >= 1.0 - 1e-6) {
+                const sign: T = if (sin_yaw >= 0) 1.0 else -1.0;
                 return .{
-                    .pitch = -sign * 2.0 * turn.atan2(n.x(), n.w()),
-                    .yaw = sign * 0.25,
-                    .roll = 0,
+                    .pitch_turns = -sign * 2.0 * turn.atan2(n.x(), n.w()),
+                    .yaw_turns = sign * 0.25,
+                    .roll_turns = 0,
                 };
             }
 
             return .{
-                .pitch = turn.atan2(
+                .pitch_turns = turn.atan2(
                     2.0 * (n.w() * n.x() + n.y() * n.z()),
                     1.0 - 2.0 * (n.x() * n.x() + n.y() * n.y()),
                 ),
-                .yaw = turn.asin(std.math.clamp(sinp, @as(T, -1.0), @as(T, 1.0))),
-                .roll = turn.atan2(
+                .yaw_turns = turn.asin(std.math.clamp(sin_yaw, @as(T, -1.0), @as(T, 1.0))),
+                .roll_turns = turn.atan2(
                     2.0 * (n.w() * n.z() + n.x() * n.y()),
                     1.0 - 2.0 * (n.y() * n.y() + n.z() * n.z()),
                 ),
@@ -113,7 +110,7 @@ pub fn Quat(comptime T: type) type {
 
         pub fn fromMat(m: anytype) Self {
             const M = @TypeOf(m);
-            if (M.rows < 3 or M.cols < 3) @compileError("fromMat requires at least a 3x3 matrix");
+            if (M.row_count < 3 or M.column_count < 3) @compileError("fromMat requires at least a 3x3 matrix");
 
             const m00 = m.at(0, 0);
             const m01 = m.at(0, 1);
@@ -166,9 +163,10 @@ pub fn Quat(comptime T: type) type {
             }
         }
 
-        pub fn toMat4(self: Self, comptime layout: mat.Layout) mat.Mat(layout, T, 4, 4) {
+        /// Square rotation matrix, the rest of the matrix is identity.
+        pub fn mat(self: Self, comptime layout: matrix.Layout, comptime dimension: usize) matrix.Mat(layout, T, dimension, dimension) {
+            if (dimension < 3) @compileError("mat requires at least 3x3");
             const n = self.normalize();
-            const M = mat.Mat(layout, T, 4, 4);
 
             const xx = n.x() * n.x();
             const yy = n.y() * n.y();
@@ -180,37 +178,7 @@ pub fn Quat(comptime T: type) type {
             const wy = n.w() * n.y();
             const wz = n.w() * n.z();
 
-            var result: M = .identity;
-            result.put(0, 0, 1.0 - 2.0 * (yy + zz));
-            result.put(1, 0, 2.0 * (xy + wz));
-            result.put(2, 0, 2.0 * (xz - wy));
-
-            result.put(0, 1, 2.0 * (xy - wz));
-            result.put(1, 1, 1.0 - 2.0 * (xx + zz));
-            result.put(2, 1, 2.0 * (yz + wx));
-
-            result.put(0, 2, 2.0 * (xz + wy));
-            result.put(1, 2, 2.0 * (yz - wx));
-            result.put(2, 2, 1.0 - 2.0 * (xx + yy));
-
-            return result;
-        }
-
-        pub fn toMat3(self: Self, comptime layout: mat.Layout) mat.Mat(layout, T, 3, 3) {
-            const n = self.normalize();
-            const M = mat.Mat(layout, T, 3, 3);
-
-            const xx = n.x() * n.x();
-            const yy = n.y() * n.y();
-            const zz = n.z() * n.z();
-            const xy = n.x() * n.y();
-            const xz = n.x() * n.z();
-            const yz = n.y() * n.z();
-            const wx = n.w() * n.x();
-            const wy = n.w() * n.y();
-            const wz = n.w() * n.z();
-
-            var result: M = .identity;
+            var result: matrix.Mat(layout, T, dimension, dimension) = .identity;
             result.put(0, 0, 1.0 - 2.0 * (yy + zz));
             result.put(1, 0, 2.0 * (xy + wz));
             result.put(2, 0, 2.0 * (xz - wy));
@@ -247,8 +215,8 @@ pub fn Quat(comptime T: type) type {
             return .{ .v = vec.sub(self.v, other.v) };
         }
 
-        pub fn scalarMul(self: Self, s: T) Self {
-            return .{ .v = vec.scale(self.v, s) };
+        pub fn scalarMul(self: Self, scalar: T) Self {
+            return .{ .v = vec.scale(self.v, scalar) };
         }
 
         pub fn negate(self: Self) Self {
@@ -259,12 +227,12 @@ pub fn Quat(comptime T: type) type {
             return .{ .v = .{ -self.x(), -self.y(), -self.z(), self.w() } };
         }
 
-        pub fn norm2(self: Self) T {
+        pub fn normSquared(self: Self) T {
             return vec.dot(self.v, self.v);
         }
 
         pub fn norm(self: Self) T {
-            return std.math.sqrt(self.norm2());
+            return std.math.sqrt(self.normSquared());
         }
 
         pub fn normalize(self: Self) Self {
@@ -274,17 +242,16 @@ pub fn Quat(comptime T: type) type {
         }
 
         pub fn inverse(self: Self) Self {
-            const n2 = self.norm2();
-            if (n2 < 1e-15) return .identity;
-            const conj = self.conjugate();
-            return .{ .v = conj.v / @as(@Vector(4, T), @splat(n2)) };
+            const norm_squared = self.normSquared();
+            if (norm_squared < 1e-15) return .identity;
+            return .{ .v = self.conjugate().v / @as(@Vector(4, T), @splat(norm_squared)) };
         }
 
         pub fn dot(self: Self, other: Self) T {
             return vec.dot(self.v, other.v);
         }
 
-        /// Assumes the quaternion is normalized.
+        /// Assume the quaternion is normalized.
         pub fn rotateVec(self: Self, point: [3]T) [3]T {
             const u = self.imaginary();
             const uv = vec.cross(u, point);
@@ -294,19 +261,22 @@ pub fn Quat(comptime T: type) type {
 
         pub fn nlerp(self: Self, other: Self, t: T) Self {
             var b = other;
+            // take the shorter path
             if (self.dot(b) < 0) b.v = -@as(@Vector(4, T), b.v);
-            const tv: @Vector(4, T) = @splat(t);
-            const omtv: @Vector(4, T) = @splat(1.0 - t);
-            return (Self{ .v = self.v * omtv + b.v * tv }).normalize();
+            const t_splat: @Vector(4, T) = @splat(t);
+            const one_minus_t: @Vector(4, T) = @splat(1.0 - t);
+            return (Self{ .v = self.v * one_minus_t + b.v * t_splat }).normalize();
         }
 
         pub fn slerp(self: Self, other: Self, t: T) Self {
             var b = other;
             var d = self.dot(b);
+            // take the shorter path
             if (d < 0) {
                 b.v = -@as(@Vector(4, T), b.v);
                 d = -d;
             }
+            // nearly parallel, sin(theta) would divide by ~0
             if (d > 1.0 - 1e-6) return self.nlerp(b, t);
 
             const theta = std.math.acos(std.math.clamp(d, @as(T, -1.0), @as(T, 1.0)));
@@ -321,11 +291,11 @@ pub fn Quat(comptime T: type) type {
         }
 
         pub fn approxEql(self: Self, other: Self, tolerance: T) bool {
-            const diff = @abs(@as(@Vector(4, T), self.v) - @as(@Vector(4, T), other.v));
-            const tol: @Vector(4, T) = @splat(tolerance);
-            return @reduce(.And, diff <= tol);
+            const difference = @abs(@as(@Vector(4, T), self.v) - @as(@Vector(4, T), other.v));
+            return @reduce(.And, difference <= @as(@Vector(4, T), @splat(tolerance)));
         }
 
+        /// `q` and `-q` represent the same rotation.
         pub fn rotationEql(self: Self, other: Self, tolerance: T) bool {
             return self.approxEql(other, tolerance) or self.negate().approxEql(other, tolerance);
         }
@@ -334,10 +304,6 @@ pub fn Quat(comptime T: type) type {
             try writer.print("Quat({d}, {d}, {d}, {d})", .{ self.x(), self.y(), self.z(), self.w() });
         }
     };
-}
-
-fn expectVecApproxEql(expected: [3]f32, actual: [3]f32) !void {
-    for (expected, actual) |e, a| try std.testing.expectApproxEqAbs(e, a, 1e-5);
 }
 
 test "Quat arithmetic" {
@@ -349,7 +315,7 @@ test "Quat arithmetic" {
     try std.testing.expect(a.scalarMul(2).eql(.init(2, 4, 6, 8)));
     try std.testing.expect(a.negate().eql(.init(-1, -2, -3, -4)));
     try std.testing.expectEqual(@as(f32, 70), a.dot(b));
-    try std.testing.expectEqual(@as(f32, 30), a.norm2());
+    try std.testing.expectEqual(@as(f32, 30), a.normSquared());
     try std.testing.expect(a.mul(a.inverse()).approxEql(.identity, 1e-6));
 }
 
@@ -358,32 +324,32 @@ test "Quat rotateVec" {
     const q: Q = .fromAxisAngle(.{ 0, 0, 1 }, 0.25);
     try expectVecApproxEql(.{ 0, 1, 0 }, q.rotateVec(.{ 1, 0, 0 }));
 
-    const m = q.toMat3(.cm);
+    const m = q.mat(.cm, 3);
     try expectVecApproxEql(m.mulVec(.{ 1, 2, 3 }), q.rotateVec(.{ 1, 2, 3 }));
 }
 
 test "Quat matrix roundtrip" {
     const Q = Quat(f32);
     const q = Q.fromAxisAngle(.{ 1, 2, 3 }, 0.4);
-    try std.testing.expect(Q.fromMat(q.toMat4(.cm)).rotationEql(q, 1e-5));
-    try std.testing.expect(Q.fromMat(q.toMat3(.rm)).rotationEql(q, 1e-5));
+    try std.testing.expect(Q.fromMat(q.mat(.cm, 4)).rotationEql(q, 1e-5));
+    try std.testing.expect(Q.fromMat(q.mat(.rm, 3)).rotationEql(q, 1e-5));
 }
 
 test "Quat axis angle roundtrip" {
     const Q = Quat(f32);
     const q = Q.fromAxisAngle(.{ 0, 3, 4 }, 0.2);
-    const aa = q.toAxisAngle();
-    try std.testing.expectApproxEqAbs(@as(f32, 0.2), aa.angle, 1e-6);
-    try expectVecApproxEql(.{ 0, 0.6, 0.8 }, aa.axis);
+    const axis_angle = q.axisAngle();
+    try std.testing.expectApproxEqAbs(@as(f32, 0.2), axis_angle.angle_turns, 1e-6);
+    try expectVecApproxEql(.{ 0, 0.6, 0.8 }, axis_angle.axis);
 }
 
 test "Quat euler roundtrip" {
     const Q = Quat(f32);
     const q = Q.fromEuler(0.05, -0.11, 0.18);
-    const e = q.toEuler();
-    try std.testing.expectApproxEqAbs(@as(f32, 0.05), e.pitch, 1e-6);
-    try std.testing.expectApproxEqAbs(@as(f32, -0.11), e.yaw, 1e-6);
-    try std.testing.expectApproxEqAbs(@as(f32, 0.18), e.roll, 1e-6);
+    const e = q.euler();
+    try std.testing.expectApproxEqAbs(@as(f32, 0.05), e.pitch_turns, 1e-6);
+    try std.testing.expectApproxEqAbs(@as(f32, -0.11), e.yaw_turns, 1e-6);
+    try std.testing.expectApproxEqAbs(@as(f32, 0.18), e.roll_turns, 1e-6);
 }
 
 test "Quat slerp" {
@@ -394,4 +360,8 @@ test "Quat slerp" {
     try std.testing.expect(a.slerp(b, 0).rotationEql(a, 1e-5));
     try std.testing.expect(a.slerp(b, 1).rotationEql(b, 1e-5));
     try std.testing.expect(a.nlerp(b, 1).rotationEql(b, 1e-5));
+}
+
+fn expectVecApproxEql(expected: [3]f32, actual: [3]f32) !void {
+    for (expected, actual) |e, a| try std.testing.expectApproxEqAbs(e, a, 1e-5);
 }
