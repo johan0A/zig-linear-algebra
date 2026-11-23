@@ -4,19 +4,19 @@ const sin_module = @import("sin.zig");
 pub const sin = sin_module.sin;
 pub const cos = sin_module.cos;
 
-pub fn fromRadians(radians: anytype) @TypeOf(radians) {
-    return radians / std.math.tau;
+pub fn fromRadians(rads: anytype) @TypeOf(rads) {
+    return rads / std.math.tau;
 }
 
-pub fn toRadians(turns: anytype) @TypeOf(turns) {
+pub fn radians(turns: anytype) @TypeOf(turns) {
     return turns * std.math.tau;
 }
 
-pub fn fromDegrees(degrees: anytype) @TypeOf(degrees) {
-    return degrees / 360.0;
+pub fn fromDegrees(degs: anytype) @TypeOf(degs) {
+    return degs / 360.0;
 }
 
-pub fn toDegrees(turns: anytype) @TypeOf(turns) {
+pub fn degrees(turns: anytype) @TypeOf(turns) {
     return turns * 360.0;
 }
 

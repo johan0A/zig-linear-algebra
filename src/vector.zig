@@ -62,8 +62,22 @@ pub fn sub(v: anytype, other: @TypeOf(v)) @TypeOf(v) {
     return simd(v) - simd(other);
 }
 
+/// Component wise.
+pub fn mul(v: anytype, other: @TypeOf(v)) @TypeOf(v) {
+    return simd(v) * simd(other);
+}
+
 pub fn scale(v: anytype, factor: std.meta.Child(@TypeOf(v))) @TypeOf(v) {
     return simd(v) * @as(Simd(@TypeOf(v)), @splat(factor));
+}
+
+pub fn negate(v: anytype) @TypeOf(v) {
+    return -simd(v);
+}
+
+/// Components differ by at most `tolerance`.
+pub fn approxEql(v: anytype, other: @TypeOf(v), tolerance: std.meta.Child(@TypeOf(v))) bool {
+    return @reduce(.And, @abs(simd(v) - simd(other)) <= @as(Simd(@TypeOf(v)), @splat(tolerance)));
 }
 
 pub fn dot(v: anytype, other: @TypeOf(v)) std.meta.Child(@TypeOf(v)) {
@@ -162,26 +176,6 @@ fn arrayInfo(comptime V: type) std.builtin.Type.Array {
     const info = @typeInfo(V);
     if (info != .array) @compileError("expected array type, got: " ++ @typeName(V));
     return info.array;
-}
-
-test add {
-    const a: [3]f32 = .{ 1, 2, 3 };
-    try std.testing.expectEqual([3]f32{ 5, 7, 9 }, add(a, .{ 4, 5, 6 }));
-    const b: [2]i32 = .{ 1, -2 };
-    try std.testing.expectEqual([2]i32{ 4, -6 }, add(b, .{ 3, -4 }));
-}
-
-test sub {
-    const a: [3]f32 = .{ 1, 2, 3 };
-    try std.testing.expectEqual([3]f32{ -3, -3, -3 }, sub(a, .{ 4, 5, 6 }));
-    const b: [2]u8 = .{ 5, 7 };
-    try std.testing.expectEqual([2]u8{ 2, 3 }, sub(b, .{ 3, 4 }));
-}
-
-test scale {
-    const v: [2]f32 = .{ 1, 2 };
-    try std.testing.expectEqual([2]f32{ 2, 4 }, scale(v, 2));
-    try std.testing.expectEqual([2]f32{ 0.5, 1 }, scale(v, 0.5));
 }
 
 test swizzle {

@@ -234,7 +234,6 @@ pub fn Mat(
             inline for (0..row_count) |r| {
                 inline for (0..column_count) |c| {
                     const sign: T = if ((c + r) % 2 == 0) 1 else -1;
-                    // adjugate is the transposed cofactor matrix, so skip row c and column r
                     const minor = if (cm)
                         rawSubmatrix(row_count, self.items, r, c)
                     else
